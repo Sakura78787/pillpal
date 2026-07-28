@@ -1,4 +1,4 @@
-# 慢病用药小管家
+# PillPal｜慢病用药小管家
 
 从美团 NoCode 导出的慢病用药管理原型迁移到自有 Supabase + Netlify 链路。本阶段目标是先打通“可登录、可在线保存、可部署、可验收”的线上底座，不新增 AI、离线同步、系统推送、家庭协作、续方服务或医疗建议。
 
@@ -7,7 +7,8 @@
 - 前端：React + Vite + Zustand + Tailwind CSS
 - 认证：Supabase Auth 邮箱 Magic Link
 - 数据库：Supabase Postgres，业务表启用 RLS
-- 部署：Netlify 静态站点，`netlify.toml` 已配置 SPA fallback
+- 部署：Netlify 静态站点，当前站点名 `pillpal-app`，`netlify.toml` 已配置 SPA fallback
+- 当前 Preview：`https://6a68e1b9ff387911f6e01c0b--pillpal-app.netlify.app`
 
 ## 本地启动
 
@@ -28,6 +29,7 @@ npm run dev
 
 ```text
 supabase/migrations/20260728000000_initial_schema.sql
+supabase/migrations/20260728001000_tighten_public_table_grants.sql
 ```
 
 该 migration 会创建 `profiles`、`medications`、`medication_logs`、`health_records`、`appointments` 五张核心表，并配置：
@@ -43,8 +45,9 @@ Auth URL 建议配置：
 - Site URL：正式 Netlify 域名
 - Redirect URLs：
   - `http://localhost:8080/auth/callback`
-  - `https://YOUR_NETLIFY_SITE.netlify.app/auth/callback`
-  - `https://**--YOUR_NETLIFY_SITE.netlify.app/**`
+  - `https://pillpal-app.netlify.app/auth/callback`
+  - `https://6a68e1b9ff387911f6e01c0b--pillpal-app.netlify.app/auth/callback`
+  - `https://**--pillpal-app.netlify.app/**`
 
 注意：只在前端和 Netlify 中使用 publishable key，不要暴露 service-role key。
 
