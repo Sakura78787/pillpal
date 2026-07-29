@@ -8,7 +8,8 @@
 - 认证：Supabase Auth 邮箱 Magic Link
 - 数据库：Supabase Postgres，业务表启用 RLS
 - 部署：Netlify 静态站点，当前站点名 `pillpal-app`，`netlify.toml` 已配置 SPA fallback
-- 当前 Preview：`https://6a68e1b9ff387911f6e01c0b--pillpal-app.netlify.app`
+- Production：`https://pillpal-app.netlify.app`
+- 最新验收 Preview：`https://6a68e1b9ff387911f6e01c0b--pillpal-app.netlify.app`
 
 ## 本地启动
 
