@@ -11,6 +11,7 @@ import CheckInModal from '@/components/dashboard/CheckInModal';
 import StockAlert from '@/components/inventory/StockAlert';
 import StockManager from '@/components/inventory/StockManager';
 import AppointmentReminder from '@/components/appointments/AppointmentReminder';
+import WeeklyReportEntryCard from '@/features/ai-report/components/WeeklyReportEntryCard';
 import { useAuthStore } from '@/store/authStore';
 import { useMedicationStore } from '@/store/medicationStore';
 import { useLogStore } from '@/store/logStore';
@@ -559,6 +560,10 @@ const Dashboard = () => {
           appointments={appointments}
           onViewAll={() => navigate('/appointments')}
         />
+      </div>
+
+      <div className="px-4 mt-4">
+        <WeeklyReportEntryCard />
       </div>
 
       {/* 库存预警和补货入口 */}

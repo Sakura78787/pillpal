@@ -19,6 +19,7 @@ import Profile from '@/pages/Profile';
 import Settings from '@/pages/Settings';
 import About from '@/pages/About';
 import ReminderSettings from '@/pages/ReminderSettings';
+import WeeklyReport from '@/pages/WeeklyReport';
 
 const LoadingScreen = () => (
   <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -92,6 +93,7 @@ function App() {
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         <Route path="/about" element={<ProtectedRoute><About /></ProtectedRoute>} />
         <Route path="/profile/reminders" element={<ProtectedRoute><ReminderSettings /></ProtectedRoute>} />
+        <Route path="/weekly-report" element={<ProtectedRoute><WeeklyReport /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
