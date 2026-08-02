@@ -26,7 +26,6 @@ export function buildWeeklyReportMessages({
   promptVersion: 'v0' | 'v1';
   model: string;
 }) {
-  const factsJson = JSON.stringify(facts);
   const baseSystem = [
     'You generate a weekly medication-management summary for a consumer health app.',
     'Use only the provided anonymous aggregate facts.',
@@ -39,6 +38,9 @@ export function buildWeeklyReportMessages({
   const v1Additions = [
     'For every highlight, include at least one evidence_ids item that exists in facts.evidence.',
     'Prefer concrete recorded check-in counts, low-stock count, health-record count, upcoming appointment status, and data gaps.',
+    'Do not turn appointment status into an appointment count; if only hasUpcomingAppointment is provided, say there is an upcoming appointment instead of saying there is 1 appointment.',
+    'If a numeric value is not present in facts.evidence, do not write it as a number.',
+    'Return the exact fixed disclaimer string shown in the schema.',
     'When data is sparse, say the record is insufficient instead of describing health control as good or bad.',
     'Keep the tone neutral, short, and non-medical.',
   ].join('\n');
@@ -50,7 +52,7 @@ export function buildWeeklyReportMessages({
     },
     {
       role: 'user',
-      content: JSON.stringify({ facts: factsJson, promptVersion, model }),
+      content: JSON.stringify({ facts, promptVersion, model }),
     },
   ];
 }

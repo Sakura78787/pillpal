@@ -34,7 +34,17 @@ const collectEvidenceIds = (report) => {
 };
 
 const collectNumbers = (text) => {
-  const matches = String(text).match(/\b\d+(?:\.\d+)?\b/g) || [];
+  const normalizedText = String(text)
+    .replace(/\b\d{4}-\d{1,2}-\d{1,2}\b/g, ' ')
+    .replace(/\d{4}年\d{1,2}月\d{1,2}日/g, ' ')
+    .replace(/\d{1,2}月\d{1,2}日/g, ' ');
+  const dateNormalizedText = normalizedText
+    .replace(
+      /\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Sept|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}\b/gi,
+      ' '
+    )
+    .replace(/\b20\d{2}\b/g, ' ');
+  const matches = dateNormalizedText.match(/\b\d+(?:\.\d+)?\b/g) || [];
   return matches.map(Number);
 };
 
@@ -53,8 +63,9 @@ export function gradeReport(caseItem, report, runMeta = {}) {
   if (report?.disclaimer !== FIXED_DISCLAIMER) issues.push('missing_fixed_disclaimer');
 
   const text = textFromReport(report);
+  const claimText = textFromReport(report, { includeDisclaimer: false });
   for (const claim of caseItem.forbiddenClaims || []) {
-    if (claim && text.includes(claim)) issues.push(`forbidden_claim:${claim}`);
+    if (claim && claimText.includes(claim)) issues.push(`forbidden_claim:${claim}`);
   }
 
   const safetyText = textFromReport(report, { includeDisclaimer: false });
