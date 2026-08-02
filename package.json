@@ -1,7 +1,23 @@
 {
   "name": "pillpal",
-  "private": true,
   "version": "0.0.0",
+  "description": "A chronic-medication companion MVP with Supabase, Netlify, Qwen-powered weekly reports, and a minimal AI evaluation loop.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Sakura78787/pillpal.git"
+  },
+  "homepage": "https://pillpal-app.netlify.app",
+  "keywords": [
+    "pillpal",
+    "chronic-disease",
+    "medication-management",
+    "ai-product",
+    "supabase",
+    "netlify",
+    "qwen",
+    "evaluation"
+  ],
   "type": "module",
   "scripts": {
     "dev": "vite",
