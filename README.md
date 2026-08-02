@@ -182,6 +182,7 @@ netlify/functions/            服务端模型调用与鉴权
 evals/ai-weekly-report/       合成评测集、评分器与真实运行结果
 supabase/migrations/          数据库 schema 与 RLS migration
 docs/superpowers/plans/       关键实施计划
+docs/project-management/      阶段交接、风险边界与后续迭代目标
 ```
 
 ## 隐私与安全边界
@@ -191,6 +192,11 @@ docs/superpowers/plans/       关键实施计划
 - 评测数据全部为合成数据。
 - 前端不包含 service-role key 或模型 API Key。
 - 输出固定包含非医疗建议声明。
+
+## 项目管理文档
+
+- [阶段交接文档](./docs/project-management/2026-08-02-pillpal-stage-handoff.md)：记录当前事实、验收结果、关键决策、风险边界和下一阶段建议。
+- [开源发布前检查](./docs/open-source-audit.md)：记录仓库公开范围、敏感信息排除和已知依赖提示。
 
 ## 后续路线
 
