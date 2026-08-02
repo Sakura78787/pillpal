@@ -13,6 +13,7 @@ type HandlerDeps = {
   getConfig: () => WeeklyReportFunctionConfig;
   verifyUser: (accessToken: string) => Promise<unknown>;
   callModel: (input: { facts: unknown; promptVersion: PromptVersion }, config: WeeklyReportFunctionConfig) => Promise<unknown>;
+  logEvent?: (event: string, payload: Record<string, unknown>) => void;
 };
 
 const json = (body: unknown, status = 200) =>
@@ -67,6 +68,15 @@ const sanitizeUsage = (usage: unknown) => {
   const outputTokens = Number(value.outputTokens || value.completion_tokens || 0);
   const totalTokens = Number(value.totalTokens || value.total_tokens || inputTokens + outputTokens);
   return { inputTokens, outputTokens, totalTokens };
+};
+
+const logWeeklyReportEvent = (
+  deps: HandlerDeps,
+  event: string,
+  payload: Record<string, unknown>
+) => {
+  const logger = deps.logEvent || ((name, value) => console.log(name, JSON.stringify(value)));
+  logger(event, payload);
 };
 
 export async function callQwenWeeklyReport(
@@ -146,6 +156,7 @@ export async function handleWeeklyReportRequest(request: Request, deps: HandlerD
   }
 
   try {
+    const startedAt = Date.now();
     const modelResult = await deps.callModel(
       { facts: parsedRequest.data.facts, promptVersion },
       config
@@ -156,8 +167,20 @@ export async function handleWeeklyReportRequest(request: Request, deps: HandlerD
     const normalized = normalizeModelResult(modelResult);
     const report = validateEvidenceIds(normalized.report, parsedRequest.data.facts);
     const usage = sanitizeUsage(normalized.usage);
+    logWeeklyReportEvent(deps, 'weekly_report_model_success', {
+      model: config.model,
+      promptVersion,
+      durationMs: Date.now() - startedAt,
+      inputTokens: usage?.inputTokens || 0,
+      outputTokens: usage?.outputTokens || 0,
+      totalTokens: usage?.totalTokens || 0,
+    });
     return json(usage ? { report, usage } : { report });
   } catch {
+    logWeeklyReportEvent(deps, 'weekly_report_model_failure', {
+      model: config.model,
+      promptVersion,
+    });
     return json({ error: 'AI weekly report generation failed' }, 502);
   }
 }

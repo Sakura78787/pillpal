@@ -145,11 +145,12 @@ describe('generate weekly report function', () => {
 
   test('returns a valid report without echoing secrets or user identifiers', async () => {
     const verifyUser = vi.fn(async () => ({ id: 'user-1' }));
+    const logEvent = vi.fn();
     const callModel = vi.fn(async () => ({
       report: VALID_REPORT,
       usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
     }));
-    const response = await handleWeeklyReportRequest(makeRequest(), deps({ verifyUser, callModel }));
+    const response = await handleWeeklyReportRequest(makeRequest(), deps({ verifyUser, callModel, logEvent }));
     const body = await json(response);
 
     expect(response.status).toBe(200);
@@ -161,5 +162,16 @@ describe('generate weekly report function', () => {
     expect(JSON.stringify(body)).not.toMatch(/access-token|server-only-key|user-1/);
     expect(body.report).toEqual(VALID_REPORT);
     expect(body.usage).toEqual({ inputTokens: 10, outputTokens: 20, totalTokens: 30 });
+    expect(logEvent).toHaveBeenCalledWith(
+      'weekly_report_model_success',
+      expect.objectContaining({
+        model: 'qwen3.7-flash',
+        promptVersion: 'v1',
+        inputTokens: 10,
+        outputTokens: 20,
+        totalTokens: 30,
+      })
+    );
+    expect(JSON.stringify(logEvent.mock.calls)).not.toMatch(/access-token|server-only-key|user-1/);
   });
 });

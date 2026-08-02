@@ -5,12 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 const percent = (value) => `${(Number(value || 0) * 100).toFixed(1)}%`;
 
 const metricRows = [
-  ['Schema Pass', 'schemaPassRate'],
-  ['Key Fact Recall', 'keyFactRecall'],
-  ['Evidence Validity', 'evidenceValidityRate'],
-  ['Unsupported Numeric Claims', 'unsupportedNumericClaimRate'],
-  ['Safety Pass', 'safetyPassRate'],
-  ['Request Success', 'requestSuccessRate'],
+  ['结构合规率', 'schemaPassRate'],
+  ['关键事实召回率', 'keyFactRecall'],
+  ['证据 ID 有效率', 'evidenceValidityRate'],
+  ['无证据数字声明率', 'unsupportedNumericClaimRate'],
+  ['安全边界通过率', 'safetyPassRate'],
+  ['请求成功率', 'requestSuccessRate'],
 ];
 
 const hasPassedReleaseGate = (snapshot) => {
@@ -39,7 +39,7 @@ const RunCard = ({ title, summary }) => (
         </div>
       ))}
       <div className="border-t border-slate-100 pt-3 text-xs text-slate-500">
-        Avg latency {Math.round(summary?.averageLatencyMs || 0)}ms · P95 {Math.round(summary?.p95LatencyMs || 0)}ms
+        平均延迟 {Math.round(summary?.averageLatencyMs || 0)}ms · P95 {Math.round(summary?.p95LatencyMs || 0)}ms
       </div>
     </CardContent>
   </Card>
@@ -49,7 +49,7 @@ const BadCaseList = ({ cases = [] }) => {
   if (!cases.length) {
     return (
       <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-800">
-        V1 has no failed automatic-evaluation cases in the recorded snapshot.
+        V1 在当前评测快照中没有自动评测失败样本。
       </div>
     );
   }
@@ -63,7 +63,7 @@ const BadCaseList = ({ cases = [] }) => {
             {item.caseId}
           </div>
           <div className="mt-2 text-xs text-amber-800">
-            Status {item.status || 'n/a'} · Issues {(item.issues || []).join(', ') || 'none'}
+            状态码 {item.status || 'n/a'} · 问题 {(item.issues || []).join(', ') || '无'}
           </div>
           {item.summary && <p className="mt-2 text-sm text-amber-900">{item.summary}</p>}
         </div>
@@ -81,27 +81,27 @@ const EvalSummary = ({ snapshot }) => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg text-slate-900">
             <ShieldCheck className="h-5 w-5 text-emerald-600" />
-            AI Weekly Report Evaluation
+            AI 周报评测结果
           </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 text-sm text-slate-700 md:grid-cols-4">
           <div>
-            <div className="text-xs text-slate-500">Dataset</div>
+            <div className="text-xs text-slate-500">数据集</div>
             <div className="font-medium">{snapshot.datasetVersion}</div>
           </div>
           <div>
-            <div className="text-xs text-slate-500">Model</div>
+            <div className="text-xs text-slate-500">模型</div>
             <div className="font-medium">{snapshot.model}</div>
           </div>
           <div>
-            <div className="text-xs text-slate-500">Cases</div>
+            <div className="text-xs text-slate-500">样本数</div>
             <div className="font-medium">{snapshot.caseCount}</div>
           </div>
           <div>
-            <div className="text-xs text-slate-500">Release gate</div>
+            <div className="text-xs text-slate-500">发布门槛</div>
             <div className="flex items-center gap-1 font-medium">
               {passed && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
-              {passed ? 'Passed' : 'Not passed'}
+              {passed ? '已通过' : '未通过'}
             </div>
           </div>
         </CardContent>
@@ -114,15 +114,15 @@ const EvalSummary = ({ snapshot }) => {
 
       <Card className="border-slate-200 bg-white">
         <CardHeader>
-          <CardTitle className="text-base text-slate-900">Failed cases and Bad Case evidence</CardTitle>
+          <CardTitle className="text-base text-slate-900">失败样本与 Bad Case 证据</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <div className="mb-2 text-sm font-medium text-slate-900">V0 Bad Cases</div>
+            <div className="mb-2 text-sm font-medium text-slate-900">V0 失败样本</div>
             <BadCaseList cases={snapshot.runs.v0.badCases} />
           </div>
           <div>
-            <div className="mb-2 text-sm font-medium text-slate-900">V1 Bad Cases</div>
+            <div className="mb-2 text-sm font-medium text-slate-900">V1 失败样本</div>
             <BadCaseList cases={snapshot.runs.v1.badCases} />
           </div>
         </CardContent>
@@ -130,7 +130,7 @@ const EvalSummary = ({ snapshot }) => {
 
       <Card className="border-slate-200 bg-white">
         <CardHeader>
-          <CardTitle className="text-base text-slate-900">Boundary notes</CardTitle>
+          <CardTitle className="text-base text-slate-900">能力边界说明</CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="list-disc space-y-2 pl-5 text-sm text-slate-600">

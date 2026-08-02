@@ -61,8 +61,18 @@ describe('EvalSummary', () => {
     expect(html).toContain('30');
     expect(html).toContain('V0');
     expect(html).toContain('V1');
+    expect(html).toContain('AI 周报评测结果');
+    expect(html).toContain('数据集');
+    expect(html).toContain('模型');
+    expect(html).toContain('样本数');
+    expect(html).toContain('发布门槛');
+    expect(html).toContain('结构合规率');
+    expect(html).toContain('关键事实召回率');
     expect(html).toContain('90.0%');
     expect(html).toContain('100.0%');
+    expect(html).not.toContain('AI Weekly Report Evaluation');
+    expect(html).not.toContain('Schema Pass');
+    expect(html).not.toContain('Key Fact Recall');
   });
 
   test('renders failed cases and release gate status without triggering live evaluation', () => {
@@ -70,7 +80,8 @@ describe('EvalSummary', () => {
 
     expect(html).toContain('typical-07');
     expect(html).toContain('schema_failed');
-    expect(html).toContain('Release gate');
-    expect(html).toContain('Passed');
+    expect(html).toContain('发布门槛');
+    expect(html).toContain('已通过');
+    expect(html).toContain('失败样本与 Bad Case 证据');
   });
 });

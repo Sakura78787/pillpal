@@ -120,8 +120,8 @@
     }
   },
   "notes": [
-    "Facts are deterministic aggregates computed by code; the model only organizes wording and highlights.",
-    "The evaluation uses synthetic data only and does not include tokens, user identifiers, medicine names, raw health values, or appointment details.",
-    "Manual review is still required for readability and usefulness; these automatic metrics focus on schema, grounding, evidence, numeric support, and safety boundaries."
+    "事实数据由代码确定性计算，模型只负责组织语言、筛选重点和表达。",
+    "评测只使用合成数据，不包含 token、用户身份、药品名称、原始健康数值或预约详情。",
+    "自动指标主要覆盖结构、事实 grounding、证据引用、数字支撑和安全边界；可读性与有用性仍需要人工抽查。"
   ]
 }
