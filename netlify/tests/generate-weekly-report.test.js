@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import { handleWeeklyReportRequest } from './generate-weekly-report.ts';
+import { handleWeeklyReportRequest } from '../functions/generate-weekly-report.ts';
 
 const FACTS = {
   periodStart: '2026-07-27',
