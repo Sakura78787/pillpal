@@ -178,8 +178,8 @@ const About = () => {
                 <Mail className="w-5 h-5 text-gray-600" />
               </div>
               <div>
-                <div className="text-sm text-gray-500">邮箱</div>
-                <div className="text-sm font-medium text-gray-900">jaysakura@163.com</div>
+                <div className="text-sm text-gray-500">反馈渠道</div>
+                <div className="text-sm font-medium text-gray-900">GitHub Issues</div>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -187,8 +187,8 @@ const About = () => {
                 <Globe className="w-5 h-5 text-gray-600" />
               </div>
               <div>
-                <div className="text-sm text-gray-500">官方网站</div>
-                <div className="text-sm font-medium text-gray-900">部署地址待配置</div>
+                <div className="text-sm text-gray-500">在线演示</div>
+                <div className="text-sm font-medium text-gray-900">pillpal-app.netlify.app</div>
               </div>
             </div>
           </CardContent>

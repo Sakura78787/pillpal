@@ -1,6 +1,6 @@
 # Contributing
 
-感谢关注 PillPal。这个项目目前主要作为个人作品集和 AI 产品经理方向的可演示项目维护，欢迎通过 issue 或 pull request 交流。
+感谢关注 PillPal。这个项目目前是一个慢病家庭照护方向的 Web MVP，欢迎通过 issue 或 pull request 交流。
 
 ## 开发流程
 

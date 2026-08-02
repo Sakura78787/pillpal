@@ -12,7 +12,7 @@ describe('EvalLab', () => {
       </MemoryRouter>
     );
 
-    expect(html).toContain('面试演示后台');
+    expect(html).toContain('AI 评测实验室');
     expect(html).toContain('AI 评测实验室');
     expect(html).toContain('返回首页');
     expect(html).not.toContain('Interview demo lab');
