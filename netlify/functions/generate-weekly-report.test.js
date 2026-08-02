@@ -145,7 +145,10 @@ describe('generate weekly report function', () => {
 
   test('returns a valid report without echoing secrets or user identifiers', async () => {
     const verifyUser = vi.fn(async () => ({ id: 'user-1' }));
-    const callModel = vi.fn(async () => VALID_REPORT);
+    const callModel = vi.fn(async () => ({
+      report: VALID_REPORT,
+      usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 },
+    }));
     const response = await handleWeeklyReportRequest(makeRequest(), deps({ verifyUser, callModel }));
     const body = await json(response);
 
@@ -157,5 +160,6 @@ describe('generate weekly report function', () => {
     );
     expect(JSON.stringify(body)).not.toMatch(/access-token|server-only-key|user-1/);
     expect(body.report).toEqual(VALID_REPORT);
+    expect(body.usage).toEqual({ inputTokens: 10, outputTokens: 20, totalTokens: 30 });
   });
 });

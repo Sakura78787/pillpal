@@ -48,6 +48,27 @@ const validateEvidenceIds = (report: unknown, facts: Record<string, unknown>) =>
   };
 };
 
+const normalizeModelResult = (modelResult: unknown) => {
+  if (
+    modelResult &&
+    typeof modelResult === 'object' &&
+    'report' in modelResult &&
+    'usage' in modelResult
+  ) {
+    return modelResult as { report: unknown; usage?: unknown };
+  }
+  return { report: modelResult, usage: undefined };
+};
+
+const sanitizeUsage = (usage: unknown) => {
+  if (!usage || typeof usage !== 'object') return undefined;
+  const value = usage as Record<string, unknown>;
+  const inputTokens = Number(value.inputTokens || value.prompt_tokens || 0);
+  const outputTokens = Number(value.outputTokens || value.completion_tokens || 0);
+  const totalTokens = Number(value.totalTokens || value.total_tokens || inputTokens + outputTokens);
+  return { inputTokens, outputTokens, totalTokens };
+};
+
 export async function callQwenWeeklyReport(
   input: { facts: unknown; promptVersion: PromptVersion },
   config: WeeklyReportFunctionConfig
@@ -77,7 +98,10 @@ export async function callQwenWeeklyReport(
 
   const content = payload?.choices?.[0]?.message?.content;
   if (typeof content !== 'string') return payload;
-  return JSON.parse(content);
+  return {
+    report: JSON.parse(content),
+    usage: sanitizeUsage(payload?.usage),
+  };
 }
 
 export async function handleWeeklyReportRequest(request: Request, deps: HandlerDeps) {
@@ -129,8 +153,10 @@ export async function handleWeeklyReportRequest(request: Request, deps: HandlerD
     if (isRecoverableQwenError(modelResult)) {
       return json({ error: 'AI weekly report is temporarily unavailable' }, 503);
     }
-    const report = validateEvidenceIds(modelResult, parsedRequest.data.facts);
-    return json({ report });
+    const normalized = normalizeModelResult(modelResult);
+    const report = validateEvidenceIds(normalized.report, parsedRequest.data.facts);
+    const usage = sanitizeUsage(normalized.usage);
+    return json(usage ? { report, usage } : { report });
   } catch {
     return json({ error: 'AI weekly report generation failed' }, 502);
   }
