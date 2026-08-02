@@ -9,7 +9,10 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:ai": "vitest run src/features/ai-report evals/ai-weekly-report",
+    "eval:ai:v0": "node evals/ai-weekly-report/run.mjs --prompt=v0",
+    "eval:ai:v1": "node evals/ai-weekly-report/run.mjs --prompt=v1"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.6.0",
@@ -66,6 +69,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@netlify/functions": "^5.3.0",
     "@types/react": "^18.2.56",
     "@types/react-dom": "^18.2.19",
     "@vitejs/plugin-react": "^4.3.4",
