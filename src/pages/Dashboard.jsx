@@ -19,6 +19,7 @@ import { useAppointmentStore } from '@/store/appointmentStore';
 import { useUIStore } from '@/store/uiStore';
 import { useDefaultData, getDefaultMedications, getDefaultLogs } from '@/hooks/useDefaultData';
 import { format, isSameDay, isFuture, startOfDay } from 'date-fns';
+import { scheduleKeyMatches, toLocalDateKey } from '@/lib/dateTime';
 
 /**
  * 今日用药看板（首页）
@@ -98,7 +99,7 @@ const Dashboard = () => {
       markHasRealData();
     }
     
-    const dateStr = format(currentDate, 'yyyy-MM-dd');
+    const dateStr = toLocalDateKey(currentDate);
     
     // 只在使用今天日期且没有真实数据时显示默认数据
     if (isToday && !hasRealData && medications.filter(m => m.status === 'active').length === 0) {
@@ -119,7 +120,7 @@ const Dashboard = () => {
       await loadLocalMedications(user.id);
       
       // 加载当日打卡记录 - 关键：确保日期正确
-      const dateStr = format(currentDate, 'yyyy-MM-dd');
+      const dateStr = toLocalDateKey(currentDate);
       await loadLocalLogs(user.id, dateStr);
       
       // 加载复诊预约
@@ -202,14 +203,17 @@ const Dashboard = () => {
     setIsCheckingIn(true);
     
     try {
-      const dateStr = format(currentDate, 'yyyy-MM-dd');
+      const dateStr = toLocalDateKey(currentDate);
+      const scheduledTime = selectedTime || selectedMedication.reminder_times?.[0] || '08:00';
       
       // 关键修复：检查是否已经打过卡（使用最新的todayLogs）
-      const existingLog = todayLogs.find(l => 
-        l.medication_id === selectedMedication.id && 
-        l.scheduled_time === selectedTime &&
-        l.scheduled_date === dateStr &&
-        l.status === 'taken'
+      const existingLog = todayLogs.find(l =>
+        l.status === 'taken' &&
+        scheduleKeyMatches(l, {
+          medicationId: selectedMedication.id,
+          scheduledDate: dateStr,
+          scheduledTime,
+        })
       );
       
       if (existingLog) {
@@ -224,7 +228,7 @@ const Dashboard = () => {
 
       const result = await checkIn(user.id, selectedMedication.id, {
         scheduled_date: dateStr,
-        scheduled_time: selectedTime || selectedMedication.reminder_times?.[0] || '08:00',
+        scheduled_time: scheduledTime,
         taken_at: checkInData.taken_at,
         feeling_score: checkInData.feeling_score,
         note: checkInData.note,
@@ -316,7 +320,7 @@ const Dashboard = () => {
     }
     
     try {
-      const dateStr = format(currentDate, 'yyyy-MM-dd');
+      const dateStr = toLocalDateKey(currentDate);
       const result = await skipMedication(user.id, medication.id, {
         scheduled_date: dateStr,
         scheduled_time: time || medication.reminder_times?.[0] || '08:00',

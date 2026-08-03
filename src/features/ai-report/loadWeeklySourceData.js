@@ -1,25 +1,12 @@
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-const startOfUtcDay = (value) => {
-  const date = new Date(value);
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-};
-
-const dateKey = (date) => date.toISOString().slice(0, 10);
+import { getLocalWeekRange, localDateTimeBoundary } from '@/lib/dateTime';
 
 const rangeFor = (now) => {
-  const end = startOfUtcDay(now);
-  const weekStart = new Date(end.getTime() - 6 * DAY_MS);
-  const weekEnd = new Date(end.getTime() + DAY_MS - 1);
-  const appointmentEnd = new Date(end.getTime() + 14 * DAY_MS);
+  const range = getLocalWeekRange(now);
 
   return {
-    weekStartDate: dateKey(weekStart),
-    weekEndDate: dateKey(end),
-    weekStartIso: weekStart.toISOString(),
-    weekEndIso: weekEnd.toISOString(),
-    todayDate: dateKey(end),
-    appointmentEndDate: dateKey(appointmentEnd),
+    ...range,
+    weekStartIso: localDateTimeBoundary(range.weekStartDate, 'start'),
+    weekEndIso: localDateTimeBoundary(range.weekEndDate, 'end'),
   };
 };
 

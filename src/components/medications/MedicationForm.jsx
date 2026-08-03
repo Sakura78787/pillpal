@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import FrequencySelector from './FrequencySelector';
 import { toast } from 'sonner';
+import { toLocalDateKey } from '@/lib/dateTime';
 
 /**
  * 用药表单组件（分步式）
@@ -58,7 +59,7 @@ const MedicationForm = ({
       frequency_config: { type: 'daily', dailyTimes: 1, weeklyDays: [1, 3, 5], intervalDays: 2, customDesc: '' },
       meal_timing: 'anytime',
       reminder_times: ['08:00'],
-      start_date: new Date().toISOString().split('T')[0],
+      start_date: toLocalDateKey(),
       end_date: '',
       stock_quantity: '',
       stock_unit: '片', // 默认跟随unit
@@ -72,7 +73,7 @@ const MedicationForm = ({
         ...defaultData,
         ...initialData,
         // 确保日期格式正确
-        start_date: initialData.start_date || new Date().toISOString().split('T')[0],
+        start_date: initialData.start_date || toLocalDateKey(),
         reminder_times: initialData.reminder_times || ['08:00'],
         frequency_config: initialData.frequency_config || { type: 'daily', dailyTimes: 1, weeklyDays: [1, 3, 5], intervalDays: 2, customDesc: '' },
         // 库存单位跟随基础单位
@@ -91,7 +92,7 @@ const MedicationForm = ({
         ...prev,
         ...initialData,
         // 确保日期格式正确
-        start_date: initialData.start_date || new Date().toISOString().split('T')[0],
+        start_date: initialData.start_date || toLocalDateKey(),
         reminder_times: initialData.reminder_times || ['08:00'],
         frequency_config: initialData.frequency_config || { type: 'daily', dailyTimes: 1, weeklyDays: [1, 3, 5], intervalDays: 2, customDesc: '' },
         // 库存单位跟随基础单位

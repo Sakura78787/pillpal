@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
 import { loadWeeklySourceData } from './loadWeeklySourceData.js';
 
-const NOW = new Date('2026-08-02T12:00:00.000Z');
+const NOW = new Date(2026, 7, 4, 0, 9, 0);
 
 function createQuery(table, result) {
   const calls = [];
@@ -81,13 +81,13 @@ describe('loadWeeklySourceData', () => {
       expect(query.calls).toContainEqual(['is', 'deleted_at', null]);
     }
 
-    expect(queries.medication_logs.calls).toContainEqual(['gte', 'scheduled_date', '2026-07-27']);
-    expect(queries.medication_logs.calls).toContainEqual(['lte', 'scheduled_date', '2026-08-02']);
-    expect(queries.health_records.calls).toContainEqual(['gte', 'recorded_at', '2026-07-27T00:00:00.000Z']);
-    expect(queries.health_records.calls).toContainEqual(['lte', 'recorded_at', '2026-08-02T23:59:59.999Z']);
+    expect(queries.medication_logs.calls).toContainEqual(['gte', 'scheduled_date', '2026-07-29']);
+    expect(queries.medication_logs.calls).toContainEqual(['lte', 'scheduled_date', '2026-08-04']);
+    expect(queries.health_records.calls).toContainEqual(['gte', 'recorded_at', '2026-07-29T00:00:00.000+08:00']);
+    expect(queries.health_records.calls).toContainEqual(['lte', 'recorded_at', '2026-08-04T23:59:59.999+08:00']);
     expect(queries.appointments.calls).toContainEqual(['eq', 'status', 'scheduled']);
-    expect(queries.appointments.calls).toContainEqual(['gte', 'appointment_date', '2026-08-02']);
-    expect(queries.appointments.calls).toContainEqual(['lte', 'appointment_date', '2026-08-16']);
+    expect(queries.appointments.calls).toContainEqual(['gte', 'appointment_date', '2026-08-04']);
+    expect(queries.appointments.calls).toContainEqual(['lte', 'appointment_date', '2026-08-18']);
 
     expect(client.insert).not.toHaveBeenCalled();
     expect(client.update).not.toHaveBeenCalled();

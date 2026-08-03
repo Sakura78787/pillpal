@@ -1,13 +1,6 @@
+import { getLocalWeekRange, localDateTimeBoundary } from '@/lib/dateTime';
+
 const DAY_MS = 24 * 60 * 60 * 1000;
-const WEEK_DAYS = 7;
-const UPCOMING_APPOINTMENT_DAYS = 14;
-
-const toDateKey = (date) => date.toISOString().slice(0, 10);
-
-const startOfUtcDay = (value) => {
-  const date = new Date(value);
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-};
 
 const parseDateOnly = (value) => {
   if (!value) return null;
@@ -21,6 +14,11 @@ const isNotDeleted = (item) => !item?.deleted_at;
 const isDateInRange = (date, start, end) => {
   if (!date || Number.isNaN(date.getTime())) return false;
   return date >= start && date <= end;
+};
+
+const isDateKeyInRange = (dateKey, startDate, endDate) => {
+  if (!dateKey) return false;
+  return dateKey >= startDate && dateKey <= endDate;
 };
 
 const countBy = (items, predicate) => items.filter(predicate).length;
@@ -39,9 +37,11 @@ const buildEvidence = (facts) => ({
 });
 
 export function buildWeeklyFacts(sourceData = {}, now = new Date()) {
-  const end = startOfUtcDay(now);
-  const start = new Date(end.getTime() - (WEEK_DAYS - 1) * DAY_MS);
-  const upcomingEnd = new Date(end.getTime() + UPCOMING_APPOINTMENT_DAYS * DAY_MS);
+  const range = getLocalWeekRange(now);
+  const end = parseDateOnly(range.weekEndDate);
+  const upcomingEnd = parseDateOnly(range.appointmentEndDate);
+  const weekStartDateTime = new Date(localDateTimeBoundary(range.weekStartDate, 'start'));
+  const weekEndDateTime = new Date(localDateTimeBoundary(range.weekEndDate, 'end'));
 
   const medications = sourceData.medications || [];
   const medicationLogs = sourceData.medicationLogs || [];
@@ -52,10 +52,10 @@ export function buildWeeklyFacts(sourceData = {}, now = new Date()) {
     (medication) => isNotDeleted(medication) && medication.status === 'active'
   );
   const weekLogs = medicationLogs.filter((log) =>
-    isNotDeleted(log) && isDateInRange(parseDateOnly(log.scheduled_date), start, end)
+    isNotDeleted(log) && isDateKeyInRange(String(log.scheduled_date).slice(0, 10), range.weekStartDate, range.weekEndDate)
   );
   const weekHealthRecords = healthRecords.filter((record) =>
-    isNotDeleted(record) && isDateInRange(new Date(record.recorded_at), start, new Date(end.getTime() + DAY_MS - 1))
+    isNotDeleted(record) && isDateInRange(new Date(record.recorded_at), weekStartDateTime, weekEndDateTime)
   );
   const upcomingAppointments = appointments
     .filter((appointment) => {
@@ -88,8 +88,8 @@ export function buildWeeklyFacts(sourceData = {}, now = new Date()) {
     : null;
 
   const facts = {
-    periodStart: toDateKey(start),
-    periodEnd: toDateKey(end),
+    periodStart: range.weekStartDate,
+    periodEnd: range.weekEndDate,
     recordedTakenCount: countBy(weekLogs, (log) => log.status === 'taken'),
     recordedSkippedCount: countBy(weekLogs, (log) => log.status === 'skipped'),
     activeMedicationCount: activeMedications.length,

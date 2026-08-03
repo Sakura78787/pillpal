@@ -9,6 +9,7 @@ import {
   Settings2
 } from 'lucide-react';
 import MedicationCard from './MedicationCard';
+import { scheduleKeyMatches, toLocalDateKey } from '@/lib/dateTime';
 
 /**
  * 时段分组组件
@@ -74,7 +75,7 @@ const TimeGroup = ({
       // 自定义频次的药物放入按需服用
       if (med.frequency_type === 'custom') {
         // 查找对应的打卡记录（按日期匹配）
-        const dateStr = currentDate ? currentDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+        const dateStr = toLocalDateKey(currentDate || new Date());
         const log = logs.find(l => 
           l.medication_id === med.id && 
           l.scheduled_date === dateStr
@@ -117,11 +118,13 @@ const TimeGroup = ({
         }
         
         // 查找对应的打卡记录 - 关键修复：精确匹配时间
-        const dateStr = currentDate ? currentDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-        const log = logs.find(l => 
-          l.medication_id === med.id && 
-          l.scheduled_time === time &&
-          l.scheduled_date === dateStr
+        const dateStr = toLocalDateKey(currentDate || new Date());
+        const log = logs.find(l =>
+          scheduleKeyMatches(l, {
+            medicationId: med.id,
+            scheduledDate: dateStr,
+            scheduledTime: time,
+          })
         );
         
         expanded.push({

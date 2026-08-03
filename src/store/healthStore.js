@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { requireSupabase } from '@/integrations/supabase/client';
 import { assertUserId, cleanMutationPayload, getErrorMessage } from '@/lib/onlineCrud';
+import { toLocalDateKey } from '@/lib/dateTime';
 
 const buildRecordPayload = (userId, recordData = {}) => {
   assertUserId(userId);
@@ -14,8 +15,8 @@ const buildRecordPayload = (userId, recordData = {}) => {
 };
 
 const getTodayRecords = (records) => {
-  const today = new Date().toISOString().split('T')[0];
-  return records.filter((record) => record.recorded_at?.startsWith(today));
+  const today = toLocalDateKey();
+  return records.filter((record) => record.recorded_at && toLocalDateKey(record.recorded_at) === today);
 };
 
 export const useHealthStore = create((set, get) => ({

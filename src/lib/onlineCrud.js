@@ -28,4 +28,5 @@ export const getErrorMessage = (error, fallback = '保存失败，请稍后重�
   return error.message || error.error_description || fallback;
 };
 
-export const todayString = () => new Date().toISOString().split('T')[0];
+export const todayString = () => toLocalDateKey();
+import { toLocalDateKey } from './dateTime';

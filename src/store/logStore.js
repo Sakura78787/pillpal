@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { requireSupabase } from '@/integrations/supabase/client';
 import { assertUserId, cleanMutationPayload, getErrorMessage } from '@/lib/onlineCrud';
+import { normalizeScheduledLog, normalizeScheduledLogs, normalizeTimeKey, toLocalDateKey } from '@/lib/dateTime';
 
-const getDateString = () => new Date().toISOString().split('T')[0];
+const getDateString = () => toLocalDateKey();
 const getTimeString = () => new Date().toTimeString().slice(0, 8);
 
 const buildLogPayload = (userId, medicationId, data = {}, status = 'taken') => {
@@ -11,7 +12,7 @@ const buildLogPayload = (userId, medicationId, data = {}, status = 'taken') => {
     medication_id: medicationId,
     user_id: userId,
     scheduled_date: data.scheduled_date || getDateString(),
-    scheduled_time: data.scheduled_time || getTimeString(),
+    scheduled_time: normalizeTimeKey(data.scheduled_time || getTimeString()),
     taken_at: status === 'taken' ? data.taken_at || new Date().toISOString() : null,
     status,
     skip_reason: data.reason || data.skip_reason || null,
@@ -45,11 +46,12 @@ export const useLogStore = create((set, get) => ({
 
       if (error) throw error;
 
-      const nextState = { logs: data || [], isLoading: false };
-      if (targetDate === getDateString()) nextState.todayLogs = data || [];
+      const normalizedData = normalizeScheduledLogs(data || []);
+      const nextState = { logs: normalizedData, isLoading: false };
+      if (targetDate === getDateString()) nextState.todayLogs = normalizedData;
       if (date) nextState.selectedDate = targetDate;
       set(nextState);
-      return { success: true, data: data || [], error: null };
+      return { success: true, data: normalizedData, error: null };
     } catch (error) {
       const message = getErrorMessage(error, '加载服药记录失败');
       set({ error: message, isLoading: false });
@@ -75,9 +77,10 @@ export const useLogStore = create((set, get) => ({
       const { data, error } = await query.order('scheduled_date', { ascending: false });
       if (error) throw error;
 
-      const todayLogs = (data || []).filter((log) => log.scheduled_date === getDateString());
-      set({ logs: data || [], todayLogs, isSyncing: false });
-      return { success: true, data: data || [], error: null };
+      const normalizedData = normalizeScheduledLogs(data || []);
+      const todayLogs = normalizedData.filter((log) => log.scheduled_date === getDateString());
+      set({ logs: normalizedData, todayLogs, isSyncing: false });
+      return { success: true, data: normalizedData, error: null };
     } catch (error) {
       const message = getErrorMessage(error, '同步服药记录失败');
       set({ error: message, isSyncing: false });
@@ -117,13 +120,17 @@ export const useLogStore = create((set, get) => ({
 
       if (error) throw error;
 
+      const normalizedLog = normalizeScheduledLog(data);
       set((state) => ({
-        logs: [data, ...state.logs],
-        todayLogs: data.scheduled_date === getDateString() ? [data, ...state.todayLogs] : state.todayLogs,
+        logs: [normalizedLog, ...state.logs],
+        todayLogs:
+          normalizedLog.scheduled_date === getDateString()
+            ? [normalizedLog, ...state.todayLogs]
+            : state.todayLogs,
         isLoading: false,
       }));
 
-      return { success: true, log: data, error: null };
+      return { success: true, log: normalizedLog, error: null };
     } catch (error) {
       const message = getErrorMessage(error, '打卡失败，数据未保存');
       set({ error: message, isLoading: false });
@@ -145,13 +152,17 @@ export const useLogStore = create((set, get) => ({
 
       if (error) throw error;
 
+      const normalizedLog = normalizeScheduledLog(data);
       set((state) => ({
-        logs: [data, ...state.logs],
-        todayLogs: data.scheduled_date === getDateString() ? [data, ...state.todayLogs] : state.todayLogs,
+        logs: [normalizedLog, ...state.logs],
+        todayLogs:
+          normalizedLog.scheduled_date === getDateString()
+            ? [normalizedLog, ...state.todayLogs]
+            : state.todayLogs,
         isLoading: false,
       }));
 
-      return { success: true, log: data, error: null };
+      return { success: true, log: normalizedLog, error: null };
     } catch (error) {
       const message = getErrorMessage(error, '操作失败，数据未保存');
       set({ error: message, isLoading: false });
@@ -172,9 +183,10 @@ export const useLogStore = create((set, get) => ({
 
       if (error) throw error;
 
+      const normalizedLog = normalizeScheduledLog(data);
       set((state) => ({
-        logs: state.logs.map((log) => (String(log.id) === String(logId) ? data : log)),
-        todayLogs: state.todayLogs.map((log) => (String(log.id) === String(logId) ? data : log)),
+        logs: state.logs.map((log) => (String(log.id) === String(logId) ? normalizedLog : log)),
+        todayLogs: state.todayLogs.map((log) => (String(log.id) === String(logId) ? normalizedLog : log)),
       }));
       return { success: true, error: null };
     } catch (error) {

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { buildWeeklyFacts } from './buildWeeklyFacts.js';
 import { weeklyFactsSchema } from './contracts.js';
 
-const NOW = new Date('2026-08-02T12:00:00.000Z');
+const NOW = new Date(2026, 7, 4, 0, 9, 0);
 
 describe('buildWeeklyFacts', () => {
   test('builds anonymous weekly facts from the inclusive 7-day window', () => {
@@ -35,20 +35,21 @@ describe('buildWeeklyFacts', () => {
           },
         ],
         medicationLogs: [
-          { id: 'log-start', scheduled_date: '2026-07-27', status: 'taken', deleted_at: null },
-          { id: 'log-end', scheduled_date: '2026-08-02', status: 'skipped', note: 'private note' },
-          { id: 'log-old', scheduled_date: '2026-07-26', status: 'taken' },
+          { id: 'log-start', scheduled_date: '2026-07-29', status: 'taken', deleted_at: null },
+          { id: 'log-end', scheduled_date: '2026-08-04', status: 'taken', scheduled_time: '08:00:00' },
+          { id: 'log-skipped', scheduled_date: '2026-08-02', status: 'skipped', note: 'private note' },
+          { id: 'log-old', scheduled_date: '2026-07-28', status: 'taken' },
           { id: 'log-deleted', scheduled_date: '2026-08-01', status: 'taken', deleted_at: '2026-08-02T00:00:00.000Z' },
         ],
         healthRecords: [
-          { id: 'bp-1', record_type: 'blood_pressure', recorded_at: '2026-07-27T00:00:00.000Z', values: { systolic: 120 } },
-          { id: 'sugar-1', record_type: 'blood_sugar', recorded_at: '2026-08-02T23:59:59.000Z', values: { value: 6.1 } },
-          { id: 'weight-1', record_type: 'weight', recorded_at: '2026-07-26T23:59:59.000Z', values: { value: 50 } },
+          { id: 'bp-1', record_type: 'blood_pressure', recorded_at: '2026-07-29T00:00:00.000+08:00', values: { systolic: 120 } },
+          { id: 'sugar-1', record_type: 'blood_sugar', recorded_at: '2026-08-04T23:59:59.000+08:00', values: { value: 6.1 } },
+          { id: 'weight-1', record_type: 'weight', recorded_at: '2026-07-28T23:59:59.000+08:00', values: { value: 50 } },
           { id: 'other-1', record_type: 'mood', recorded_at: '2026-08-01T00:00:00.000Z', values: { score: 4 } },
           { id: 'deleted-health', record_type: 'weight', recorded_at: '2026-08-01T00:00:00.000Z', deleted_at: '2026-08-02T00:00:00.000Z' },
         ],
         appointments: [
-          { id: 'appt-1', hospital_name: 'Secret Hospital', doctor_name: 'Secret Doctor', appointment_date: '2026-08-05', status: 'scheduled' },
+          { id: 'appt-1', hospital_name: 'Secret Hospital', doctor_name: 'Secret Doctor', appointment_date: '2026-08-07', status: 'scheduled' },
           { id: 'appt-2', appointment_date: '2026-08-20', status: 'scheduled' },
           { id: 'appt-3', appointment_date: '2026-08-04', status: 'cancelled' },
         ],
@@ -57,9 +58,9 @@ describe('buildWeeklyFacts', () => {
     );
 
     expect(weeklyFactsSchema.parse(facts)).toEqual(facts);
-    expect(facts.periodStart).toBe('2026-07-27');
-    expect(facts.periodEnd).toBe('2026-08-02');
-    expect(facts.recordedTakenCount).toBe(1);
+    expect(facts.periodStart).toBe('2026-07-29');
+    expect(facts.periodEnd).toBe('2026-08-04');
+    expect(facts.recordedTakenCount).toBe(2);
     expect(facts.recordedSkippedCount).toBe(1);
     expect(facts.activeMedicationCount).toBe(2);
     expect(facts.lowStockMedicationCount).toBe(1);

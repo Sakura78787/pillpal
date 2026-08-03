@@ -17,6 +17,7 @@ import {
   ListTodo
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { toLocalDateKey } from '@/lib/dateTime';
 
 /**
  * 复诊预约表单组件（分步式弹窗）
@@ -41,7 +42,7 @@ const AppointmentForm = ({
   // 初始化表单数据 - 关键修复：复诊日期默认填充当天
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = toLocalDateKey();
     const defaultData = {
       hospital_name: '',
       department: '',
@@ -70,7 +71,7 @@ const AppointmentForm = ({
   // 关键修复：当initialData变化时更新表单
   useEffect(() => {
     if (initialData && isEditMode) {
-      const today = new Date().toISOString().split('T')[0];
+      const today = toLocalDateKey();
       console.log('[AppointmentForm] 加载编辑数据:', initialData);
       setFormData(prev => ({
         ...prev,
