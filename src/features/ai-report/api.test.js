@@ -91,4 +91,44 @@ describe('generateWeeklyReport', () => {
       })
     ).resolves.toMatchObject({ success: false });
   });
+
+  test('maps safe server diagnostic codes to user-facing messages', async () => {
+    await expect(
+      generateWeeklyReport({
+        supabase: supabaseWithToken,
+        facts: FACTS,
+        fetchImpl: vi.fn(async () =>
+          new Response(
+            JSON.stringify({
+              error: 'AI weekly report is temporarily unavailable',
+              code: 'AI_WEEKLY_REPORT_NOT_CONFIGURED',
+            }),
+            { status: 503 }
+          )
+        ),
+      })
+    ).resolves.toMatchObject({
+      success: false,
+      error: 'AI 周报服务未完成生产配置，请稍后重试',
+    });
+
+    await expect(
+      generateWeeklyReport({
+        supabase: supabaseWithToken,
+        facts: FACTS,
+        fetchImpl: vi.fn(async () =>
+          new Response(
+            JSON.stringify({
+              error: 'AI weekly report generation failed',
+              code: 'AI_WEEKLY_REPORT_GENERATION_FAILED',
+            }),
+            { status: 502 }
+          )
+        ),
+      })
+    ).resolves.toMatchObject({
+      success: false,
+      error: 'AI 周报生成失败，请稍后重试',
+    });
+  });
 });

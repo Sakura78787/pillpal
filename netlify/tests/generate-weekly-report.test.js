@@ -77,24 +77,44 @@ describe('generate weekly report function', () => {
 
   test('returns 503 without model calls when the server flag is disabled', async () => {
     const callModel = vi.fn();
+    const logEvent = vi.fn();
     const response = await handleWeeklyReportRequest(
       makeRequest(),
-      deps({ getConfig: () => ({ enabled: false, evalMode: false, apiKey: 'server-only-key', model: 'qwen3.7-flash' }), callModel })
+      deps({ getConfig: () => ({ enabled: false, evalMode: false, apiKey: 'server-only-key', model: 'qwen3.7-flash' }), callModel, logEvent })
     );
+    const body = await json(response);
 
     expect(response.status).toBe(503);
+    expect(body).toEqual({
+      error: 'AI weekly report is temporarily unavailable',
+      code: 'AI_WEEKLY_REPORT_NOT_CONFIGURED',
+    });
     expect(callModel).not.toHaveBeenCalled();
+    expect(logEvent).toHaveBeenCalledWith(
+      'weekly_report_config_unavailable',
+      expect.objectContaining({ reason: 'disabled' })
+    );
   });
 
   test('returns 503 without external calls when the Qwen key is missing', async () => {
     const callModel = vi.fn();
+    const logEvent = vi.fn();
     const response = await handleWeeklyReportRequest(
       makeRequest(),
-      deps({ getConfig: () => ({ enabled: true, evalMode: false, apiKey: '', model: 'qwen3.7-flash' }), callModel })
+      deps({ getConfig: () => ({ enabled: true, evalMode: false, apiKey: '', model: 'qwen3.7-flash' }), callModel, logEvent })
     );
+    const body = await json(response);
 
     expect(response.status).toBe(503);
+    expect(body).toEqual({
+      error: 'AI weekly report is temporarily unavailable',
+      code: 'AI_WEEKLY_REPORT_NOT_CONFIGURED',
+    });
     expect(callModel).not.toHaveBeenCalled();
+    expect(logEvent).toHaveBeenCalledWith(
+      'weekly_report_config_unavailable',
+      expect.objectContaining({ reason: 'missing_api_key' })
+    );
   });
 
   test('rejects missing bearer tokens', async () => {
@@ -131,7 +151,10 @@ describe('generate weekly report function', () => {
     );
 
     expect(response.status).toBe(503);
-    await expect(json(response)).resolves.not.toMatchObject({ errorCode: expect.any(String) });
+    await expect(json(response)).resolves.toEqual({
+      error: 'AI weekly report is temporarily unavailable',
+      code: 'AI_WEEKLY_REPORT_MODEL_UNAVAILABLE',
+    });
   });
 
   test('rejects model output that does not match the report schema', async () => {
@@ -139,8 +162,13 @@ describe('generate weekly report function', () => {
       makeRequest(),
       deps({ callModel: vi.fn(async () => ({ summary: 'missing fields' })) })
     );
+    const body = await json(response);
 
     expect(response.status).toBe(502);
+    expect(body).toEqual({
+      error: 'AI weekly report generation failed',
+      code: 'AI_WEEKLY_REPORT_GENERATION_FAILED',
+    });
   });
 
   test('returns a valid report without echoing secrets or user identifiers', async () => {

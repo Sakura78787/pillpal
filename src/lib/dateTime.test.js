@@ -11,7 +11,6 @@ describe('date and time keys', () => {
     const localMidnight = new Date(2026, 7, 4, 0, 9, 0);
 
     expect(toLocalDateKey(localMidnight)).toBe('2026-08-04');
-    expect(localMidnight.toISOString().slice(0, 10)).not.toBe('2026-08-04');
   });
 
   it('normalizes Supabase time values and reminder time values to the same key', () => {

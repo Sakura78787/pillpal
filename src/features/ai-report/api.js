@@ -2,6 +2,22 @@ import { weeklyFactsSchema, weeklyReportSchema } from './contracts.js';
 
 const DEFAULT_TIMEOUT_MS = 30000;
 
+const SERVER_ERROR_MESSAGES = {
+  AI_WEEKLY_REPORT_NOT_CONFIGURED: 'AI 周报服务未完成生产配置，请稍后重试',
+  AI_WEEKLY_REPORT_MODEL_UNAVAILABLE: 'AI 周报暂时不可用，请稍后重试',
+  AI_WEEKLY_REPORT_GENERATION_FAILED: 'AI 周报生成失败，请稍后重试',
+};
+
+async function readServerError(response) {
+  const fallback = 'AI 周报暂时不可用，请稍后重试';
+  try {
+    const payload = await response.json();
+    return SERVER_ERROR_MESSAGES[payload?.code] || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export async function generateWeeklyReport({
   supabase,
   facts,
@@ -38,7 +54,7 @@ export async function generateWeeklyReport({
     });
 
     if (!response.ok) {
-      return { success: false, report: null, error: 'AI 周报暂时不可用，请稍后重试' };
+      return { success: false, report: null, error: await readServerError(response) };
     }
 
     const payload = await response.json();

@@ -22,6 +22,8 @@ const json = (body: unknown, status = 200) =>
     headers: { 'content-type': 'application/json; charset=utf-8' },
   });
 
+const aiError = (code: string, error: string, status: number) => json({ error, code }, status);
+
 const extractBearerToken = (request: Request) => {
   const value = request.headers.get('authorization') || '';
   const match = value.match(/^Bearer\s+(.+)$/i);
@@ -121,10 +123,26 @@ export async function handleWeeklyReportRequest(request: Request, deps: HandlerD
 
   const config = deps.getConfig();
   if (!config.enabled) {
-    return json({ error: 'AI weekly report is temporarily unavailable' }, 503);
+    logWeeklyReportEvent(deps, 'weekly_report_config_unavailable', {
+      reason: 'disabled',
+      model: config.model,
+    });
+    return aiError(
+      'AI_WEEKLY_REPORT_NOT_CONFIGURED',
+      'AI weekly report is temporarily unavailable',
+      503
+    );
   }
   if (!config.apiKey) {
-    return json({ error: 'AI weekly report is temporarily unavailable' }, 503);
+    logWeeklyReportEvent(deps, 'weekly_report_config_unavailable', {
+      reason: 'missing_api_key',
+      model: config.model,
+    });
+    return aiError(
+      'AI_WEEKLY_REPORT_NOT_CONFIGURED',
+      'AI weekly report is temporarily unavailable',
+      503
+    );
   }
 
   const accessToken = extractBearerToken(request);
@@ -162,7 +180,15 @@ export async function handleWeeklyReportRequest(request: Request, deps: HandlerD
       config
     );
     if (isRecoverableQwenError(modelResult)) {
-      return json({ error: 'AI weekly report is temporarily unavailable' }, 503);
+      logWeeklyReportEvent(deps, 'weekly_report_model_unavailable', {
+        model: config.model,
+        promptVersion,
+      });
+      return aiError(
+        'AI_WEEKLY_REPORT_MODEL_UNAVAILABLE',
+        'AI weekly report is temporarily unavailable',
+        503
+      );
     }
     const normalized = normalizeModelResult(modelResult);
     const report = validateEvidenceIds(normalized.report, parsedRequest.data.facts);
@@ -181,7 +207,11 @@ export async function handleWeeklyReportRequest(request: Request, deps: HandlerD
       model: config.model,
       promptVersion,
     });
-    return json({ error: 'AI weekly report generation failed' }, 502);
+    return aiError(
+      'AI_WEEKLY_REPORT_GENERATION_FAILED',
+      'AI weekly report generation failed',
+      502
+    );
   }
 }
 
