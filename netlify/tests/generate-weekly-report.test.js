@@ -1,5 +1,6 @@
 import { describe, expect, test, vi } from 'vitest';
 import { handleWeeklyReportRequest } from '../functions/generate-weekly-report.ts';
+import { SupabaseAuthVerificationError } from '../functions/_shared/verifySupabaseUser.ts';
 
 const FACTS = {
   periodStart: '2026-07-27',
@@ -157,6 +158,29 @@ describe('generate weekly report function', () => {
       expect.objectContaining({ reason: 'invalid_token' })
     );
     expect(JSON.stringify(logEvent.mock.calls)).not.toContain('token details must not be exposed');
+  });
+
+  test('does not misreport a server auth configuration failure as an expired login', async () => {
+    const logEvent = vi.fn();
+    const response = await handleWeeklyReportRequest(
+      makeRequest(),
+      deps({
+        verifyUser: vi.fn(async () => {
+          throw new SupabaseAuthVerificationError('missing_config');
+        }),
+        logEvent,
+      })
+    );
+
+    expect(response.status).toBe(503);
+    await expect(json(response)).resolves.toEqual({
+      error: 'Authentication service is temporarily unavailable',
+      code: 'AI_WEEKLY_REPORT_AUTH_SERVICE_UNAVAILABLE',
+    });
+    expect(logEvent).toHaveBeenCalledWith(
+      'weekly_report_auth_failure',
+      expect.objectContaining({ reason: 'missing_config' })
+    );
   });
 
   test('rejects invalid fact payloads', async () => {

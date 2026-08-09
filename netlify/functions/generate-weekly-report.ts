@@ -5,7 +5,10 @@ import {
   FIXED_WEEKLY_REPORT_DISCLAIMER,
   buildWeeklyReportMessages,
 } from './_shared/weeklyReportPrompts.ts';
-import { verifySupabaseUser } from './_shared/verifySupabaseUser.ts';
+import {
+  SupabaseAuthVerificationError,
+  verifySupabaseUser,
+} from './_shared/verifySupabaseUser.ts';
 
 type PromptVersion = 'v0' | 'v1';
 
@@ -155,7 +158,20 @@ export async function handleWeeklyReportRequest(request: Request, deps: HandlerD
 
   try {
     await deps.verifyUser(accessToken);
-  } catch {
+  } catch (error) {
+    if (
+      error instanceof SupabaseAuthVerificationError &&
+      error.reason !== 'invalid_token'
+    ) {
+      logWeeklyReportEvent(deps, 'weekly_report_auth_failure', {
+        reason: error.reason,
+      });
+      return aiError(
+        'AI_WEEKLY_REPORT_AUTH_SERVICE_UNAVAILABLE',
+        'Authentication service is temporarily unavailable',
+        503
+      );
+    }
     logWeeklyReportEvent(deps, 'weekly_report_auth_failure', {
       reason: 'invalid_token',
     });
