@@ -1,5 +1,6 @@
 import { expect, test, vi } from 'vitest';
 import { generateWeeklyReport } from './api.js';
+import { FIXED_WEEKLY_REPORT_DISCLAIMER } from './contracts.js';
 
 const facts = {
   periodStart: '2026-08-03',
@@ -35,4 +36,34 @@ test('surfaces the safe upstream diagnostic without exposing model payloads', as
   expect(result.success).toBe(false);
   expect(result.error).toContain('qwen_free_tier_quota');
   expect(result.error).not.toContain('token');
+});
+
+test('allows a valid model response to complete after 30 seconds', async () => {
+  vi.useFakeTimers();
+  let requestSignal;
+  const report = {
+    summary: 'A valid delayed report.',
+    highlights: [{ type: 'checkins', text: 'One check-in was recorded.', evidence_ids: ['recorded_taken_count'] }],
+    data_gaps: [],
+    disclaimer: FIXED_WEEKLY_REPORT_DISCLAIMER,
+    meta: { promptVersion: 'v1', model: 'qwen3.7-flash' },
+  };
+  const fetchImpl = vi.fn((_url, init) => {
+    requestSignal = init.signal;
+    return new Promise((resolve, reject) => {
+      requestSignal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+      setTimeout(() => resolve(new Response(JSON.stringify({ report }), { status: 200 })), 35_000);
+    });
+  });
+
+  try {
+    const pending = generateWeeklyReport({ supabase, facts, fetchImpl });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(30_001);
+    expect(requestSignal.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(4_999);
+    await expect(pending).resolves.toMatchObject({ success: true, report });
+  } finally {
+    vi.useRealTimers();
+  }
 });

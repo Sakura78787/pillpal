@@ -1,6 +1,8 @@
 import { weeklyFactsSchema, weeklyReportSchema } from './contracts.js';
 
-const DEFAULT_TIMEOUT_MS = 30000;
+// Keep the browser deadline below Netlify's 60-second synchronous function limit,
+// while allowing the larger V2 structured response enough time to complete.
+const DEFAULT_TIMEOUT_MS = 55000;
 
 const SERVER_ERROR_MESSAGES = {
   AI_WEEKLY_REPORT_NOT_CONFIGURED: 'AI 周报服务未完成生产配置，请稍后重试',
