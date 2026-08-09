@@ -147,13 +147,19 @@ export async function handleWeeklyReportRequest(request: Request, deps: HandlerD
 
   const accessToken = extractBearerToken(request);
   if (!accessToken) {
-    return json({ error: 'Unauthorized' }, 401);
+    logWeeklyReportEvent(deps, 'weekly_report_auth_failure', {
+      reason: 'missing_token',
+    });
+    return aiError('AI_WEEKLY_REPORT_AUTH_REQUIRED', 'Authentication required', 401);
   }
 
   try {
     await deps.verifyUser(accessToken);
   } catch {
-    return json({ error: 'Unauthorized' }, 401);
+    logWeeklyReportEvent(deps, 'weekly_report_auth_failure', {
+      reason: 'invalid_token',
+    });
+    return aiError('AI_WEEKLY_REPORT_AUTH_REQUIRED', 'Authentication required', 401);
   }
 
   let requestBody: unknown;
@@ -165,7 +171,10 @@ export async function handleWeeklyReportRequest(request: Request, deps: HandlerD
 
   const parsedRequest = weeklyReportRequestSchema.safeParse(requestBody);
   if (!parsedRequest.success) {
-    return json({ error: 'Invalid weekly report facts' }, 400);
+    logWeeklyReportEvent(deps, 'weekly_report_input_failure', {
+      reason: 'invalid_facts',
+    });
+    return aiError('AI_WEEKLY_REPORT_INVALID_INPUT', 'Invalid weekly report facts', 400);
   }
 
   const promptVersion = parsedRequest.data.promptVersion || 'v1';

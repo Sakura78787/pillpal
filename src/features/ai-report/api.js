@@ -4,6 +4,8 @@ const DEFAULT_TIMEOUT_MS = 30000;
 
 const SERVER_ERROR_MESSAGES = {
   AI_WEEKLY_REPORT_NOT_CONFIGURED: 'AI 周报服务未完成生产配置，请稍后重试',
+  AI_WEEKLY_REPORT_AUTH_REQUIRED: '登录状态已失效，请重新登录后生成周报',
+  AI_WEEKLY_REPORT_INVALID_INPUT: '周报数据校验失败，请刷新页面后重试',
   AI_WEEKLY_REPORT_MODEL_UNAVAILABLE: 'AI 周报暂时不可用，请稍后重试',
   AI_WEEKLY_REPORT_GENERATION_FAILED: 'AI 周报生成失败，请稍后重试',
 };

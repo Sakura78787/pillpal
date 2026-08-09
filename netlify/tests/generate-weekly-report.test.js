@@ -118,21 +118,63 @@ describe('generate weekly report function', () => {
   });
 
   test('rejects missing bearer tokens', async () => {
+    const logEvent = vi.fn();
     const response = await handleWeeklyReportRequest(
       makeRequest(undefined, { headers: { authorization: '' } }),
-      deps()
+      deps({ logEvent })
     );
 
     expect(response.status).toBe(401);
+    await expect(json(response)).resolves.toEqual({
+      error: 'Authentication required',
+      code: 'AI_WEEKLY_REPORT_AUTH_REQUIRED',
+    });
+    expect(logEvent).toHaveBeenCalledWith(
+      'weekly_report_auth_failure',
+      expect.objectContaining({ reason: 'missing_token' })
+    );
+  });
+
+  test('returns a safe diagnostic when Supabase rejects the access token', async () => {
+    const logEvent = vi.fn();
+    const response = await handleWeeklyReportRequest(
+      makeRequest(),
+      deps({
+        verifyUser: vi.fn(async () => {
+          throw new Error('token details must not be exposed');
+        }),
+        logEvent,
+      })
+    );
+
+    expect(response.status).toBe(401);
+    await expect(json(response)).resolves.toEqual({
+      error: 'Authentication required',
+      code: 'AI_WEEKLY_REPORT_AUTH_REQUIRED',
+    });
+    expect(logEvent).toHaveBeenCalledWith(
+      'weekly_report_auth_failure',
+      expect.objectContaining({ reason: 'invalid_token' })
+    );
+    expect(JSON.stringify(logEvent.mock.calls)).not.toContain('token details must not be exposed');
   });
 
   test('rejects invalid fact payloads', async () => {
+    const logEvent = vi.fn();
     const response = await handleWeeklyReportRequest(
       makeRequest({ facts: { recordedTakenCount: -1 } }),
-      deps()
+      deps({ logEvent })
     );
 
     expect(response.status).toBe(400);
+    await expect(json(response)).resolves.toEqual({
+      error: 'Invalid weekly report facts',
+      code: 'AI_WEEKLY_REPORT_INVALID_INPUT',
+    });
+    expect(logEvent).toHaveBeenCalledWith(
+      'weekly_report_input_failure',
+      expect.objectContaining({ reason: 'invalid_facts' })
+    );
   });
 
   test('forbids Prompt V0 outside evaluation mode', async () => {

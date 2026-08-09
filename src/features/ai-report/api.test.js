@@ -130,5 +130,43 @@ describe('generateWeeklyReport', () => {
       success: false,
       error: 'AI 周报生成失败，请稍后重试',
     });
+
+    await expect(
+      generateWeeklyReport({
+        supabase: supabaseWithToken,
+        facts: FACTS,
+        fetchImpl: vi.fn(async () =>
+          new Response(
+            JSON.stringify({
+              error: 'Authentication required',
+              code: 'AI_WEEKLY_REPORT_AUTH_REQUIRED',
+            }),
+            { status: 401 }
+          )
+        ),
+      })
+    ).resolves.toMatchObject({
+      success: false,
+      error: '登录状态已失效，请重新登录后生成周报',
+    });
+
+    await expect(
+      generateWeeklyReport({
+        supabase: supabaseWithToken,
+        facts: FACTS,
+        fetchImpl: vi.fn(async () =>
+          new Response(
+            JSON.stringify({
+              error: 'Invalid weekly report facts',
+              code: 'AI_WEEKLY_REPORT_INVALID_INPUT',
+            }),
+            { status: 400 }
+          )
+        ),
+      })
+    ).resolves.toMatchObject({
+      success: false,
+      error: '周报数据校验失败，请刷新页面后重试',
+    });
   });
 });
