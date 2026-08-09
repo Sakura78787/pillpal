@@ -242,7 +242,7 @@ describe('generate weekly report function', () => {
     expect(response.status).toBe(200);
   });
 
-  test('maps Qwen quota and rate-limit failures to a generic 503', async () => {
+  test('returns a safe exact diagnostic for Qwen free-tier quota failures', async () => {
     const response = await handleWeeklyReportRequest(
       makeRequest(),
       deps({ callModel: vi.fn(async () => ({ errorCode: 'AllocationQuota.FreeTierOnly' })) })
@@ -252,6 +252,7 @@ describe('generate weekly report function', () => {
     await expect(json(response)).resolves.toEqual({
       error: 'AI weekly report is temporarily unavailable',
       code: 'AI_WEEKLY_REPORT_MODEL_UNAVAILABLE',
+      diagnostic: 'qwen_free_tier_quota',
     });
   });
 
@@ -266,6 +267,7 @@ describe('generate weekly report function', () => {
     expect(body).toEqual({
       error: 'AI weekly report generation failed',
       code: 'AI_WEEKLY_REPORT_GENERATION_FAILED',
+      diagnostic: 'response_validation_failed',
     });
   });
 

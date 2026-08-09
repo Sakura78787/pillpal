@@ -15,7 +15,8 @@ async function readServerError(response) {
   const fallback = 'AI 周报暂时不可用，请稍后重试';
   try {
     const payload = await response.json();
-    return SERVER_ERROR_MESSAGES[payload?.code] || fallback;
+    const message = SERVER_ERROR_MESSAGES[payload?.code] || fallback;
+    return payload?.diagnostic ? `${message}（诊断码：${payload.diagnostic}）` : message;
   } catch {
     return fallback;
   }

@@ -19,9 +19,19 @@ type HandlerDeps = {
 };
 
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json' } });
-const aiError = (code: string, error: string, status: number) => json({ error, code }, status);
+const aiError = (code: string, error: string, status: number, diagnostic?: string) =>
+  json(diagnostic ? { error, code, diagnostic } : { error, code }, status);
 const extractBearerToken = (request: Request) => request.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1] || '';
 const isRecoverableQwenError = (value: unknown) => /AllocationQuota\.FreeTierOnly|quota|rate.?limit|429/i.test(JSON.stringify(value));
+
+const getQwenFailureDiagnostic = (value: unknown) => {
+  const serialized = JSON.stringify(value);
+  if (/AllocationQuota\.FreeTierOnly/i.test(serialized)) return 'qwen_free_tier_quota';
+  if (/Throttling\.AllocationQuota|insufficient_quota|quota/i.test(serialized)) return 'qwen_quota_exhausted';
+  if (/Throttling\.BurstRate/i.test(serialized)) return 'qwen_burst_rate_limited';
+  if (/rate.?limit|429/i.test(serialized)) return 'qwen_rate_limited';
+  return 'qwen_model_unavailable';
+};
 
 const logWeeklyReportEvent = (deps: HandlerDeps, event: string, payload: Record<string, unknown>) => {
   (deps.logEvent || ((name, value) => console.log(name, JSON.stringify(value))))(event, payload);
@@ -130,21 +140,32 @@ export async function handleWeeklyReportRequest(request: Request, deps: HandlerD
   if (promptVersion === 'v2' && !weeklyFactsV2Schema.safeParse(parsedRequest.data.facts).success) {
     return aiError('AI_WEEKLY_REPORT_INVALID_INPUT', 'V2 weekly report facts required', 400);
   }
+  const startedAt = Date.now();
+  let modelResult: unknown;
   try {
-    const startedAt = Date.now();
-    const modelResult = await deps.callModel({ facts: parsedRequest.data.facts, promptVersion }, config);
-    if (isRecoverableQwenError(modelResult)) {
-      logWeeklyReportEvent(deps, 'weekly_report_model_unavailable', { model: config.model, promptVersion });
-      return aiError('AI_WEEKLY_REPORT_MODEL_UNAVAILABLE', 'AI weekly report is temporarily unavailable', 503);
-    }
+    modelResult = await deps.callModel({ facts: parsedRequest.data.facts, promptVersion }, config);
+  } catch {
+    const diagnostic = 'qwen_request_failed';
+    logWeeklyReportEvent(deps, 'weekly_report_model_failure', { model: config.model, promptVersion, diagnostic, durationMs: Date.now() - startedAt });
+    return aiError('AI_WEEKLY_REPORT_GENERATION_FAILED', 'AI weekly report generation failed', 502, diagnostic);
+  }
+
+  if (isRecoverableQwenError(modelResult)) {
+    const diagnostic = getQwenFailureDiagnostic(modelResult);
+    logWeeklyReportEvent(deps, 'weekly_report_model_unavailable', { model: config.model, promptVersion, diagnostic, durationMs: Date.now() - startedAt });
+    return aiError('AI_WEEKLY_REPORT_MODEL_UNAVAILABLE', 'AI weekly report is temporarily unavailable', 503, diagnostic);
+  }
+
+  try {
     const normalized = normalizeModelResult(modelResult);
     const report = validateReport(normalized.report, parsedRequest.data.facts, promptVersion, config.model);
     const usage = sanitizeUsage(normalized.usage);
     logWeeklyReportEvent(deps, 'weekly_report_model_success', { model: config.model, promptVersion, durationMs: Date.now() - startedAt, inputTokens: usage?.inputTokens || 0, outputTokens: usage?.outputTokens || 0, totalTokens: usage?.totalTokens || 0 });
     return json(usage ? { report, usage } : { report });
   } catch {
-    logWeeklyReportEvent(deps, 'weekly_report_model_failure', { model: config.model, promptVersion });
-    return aiError('AI_WEEKLY_REPORT_GENERATION_FAILED', 'AI weekly report generation failed', 502);
+    const diagnostic = 'response_validation_failed';
+    logWeeklyReportEvent(deps, 'weekly_report_model_failure', { model: config.model, promptVersion, diagnostic, durationMs: Date.now() - startedAt });
+    return aiError('AI_WEEKLY_REPORT_GENERATION_FAILED', 'AI weekly report generation failed', 502, diagnostic);
   }
 }
 
