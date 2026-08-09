@@ -33,9 +33,19 @@ export async function generateWeeklyReport({
   }
 
   const { data, error } = await supabase.auth.getSession();
-  const accessToken = data?.session?.access_token;
+  let accessToken = data?.session?.access_token;
   if (error || !accessToken) {
     return { success: false, report: null, error: '请先登录后再生成周报' };
+  }
+
+  if (typeof supabase.auth.refreshSession === 'function') {
+    try {
+      const refreshed = await supabase.auth.refreshSession();
+      const refreshedToken = refreshed?.data?.session?.access_token;
+      if (!refreshed?.error && refreshedToken) accessToken = refreshedToken;
+    } catch {
+      // Keep the current token; the server remains the authority on whether it is valid.
+    }
   }
 
   const controller = new AbortController();

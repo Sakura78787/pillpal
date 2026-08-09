@@ -51,6 +51,34 @@ describe('generateWeeklyReport', () => {
     expect(fetchImpl).toHaveBeenCalledWith('/api/ai/weekly-report', expect.any(Object));
   });
 
+  test('refreshes the Supabase session before calling the protected function', async () => {
+    const supabaseWithStaleToken = {
+      auth: {
+        getSession: vi.fn(async () => ({
+          data: { session: { access_token: 'stale-access-token' } },
+          error: null,
+        })),
+        refreshSession: vi.fn(async () => ({
+          data: { session: { access_token: 'fresh-access-token' } },
+          error: null,
+        })),
+      },
+    };
+    const fetchImpl = vi.fn(async (_url, init) => {
+      expect(init.headers.authorization).toBe('Bearer fresh-access-token');
+      return new Response(JSON.stringify({ report: REPORT }), { status: 200 });
+    });
+
+    const result = await generateWeeklyReport({
+      supabase: supabaseWithStaleToken,
+      facts: FACTS,
+      fetchImpl,
+    });
+
+    expect(result.success).toBe(true);
+    expect(supabaseWithStaleToken.auth.refreshSession).toHaveBeenCalledOnce();
+  });
+
   test('fails when there is no authenticated session', async () => {
     const result = await generateWeeklyReport({
       supabase: { auth: { getSession: vi.fn(async () => ({ data: { session: null }, error: null })) } },
