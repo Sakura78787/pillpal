@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
 import { handleWeeklyReportRequest } from '../functions/generate-weekly-report.ts';
 import { SupabaseAuthVerificationError } from '../functions/_shared/verifySupabaseUser.ts';
+import { buildWeeklyFacts } from '../../src/features/ai-report/buildWeeklyFacts.js';
 
 const FACTS = {
   periodStart: '2026-07-27',
@@ -42,6 +43,36 @@ const VALID_REPORT = {
   meta: { promptVersion: 'v1', model: 'qwen3.7-flash' },
 };
 
+const V2_FACTS = buildWeeklyFacts({
+  medications: [{
+    id: 'secret-med-id', name: '不应发给模型的药名', status: 'active', frequency_type: 'daily',
+    frequency_config: { dailyTimes: 1 }, reminder_times: ['08:00'], start_date: '2026-08-03',
+    dosage: 1, stock_quantity: 5, low_stock_threshold: 7,
+  }],
+  medicationLogs: [], healthRecords: [], appointments: [],
+}, new Date(2026, 7, 9, 12, 0, 0));
+
+const VALID_V2_REPORT = {
+  summary: '本周晚间存在需要核实的未记录计划。',
+  adherence: {
+    headline: '计划记录仍有缺口',
+    interpretation: '未记录不代表确认漏服，需要先与老人核实。',
+    evidence_ids: ['dueDoseCount', 'unrecordedDoseCount'],
+  },
+  insights: [{
+    category: 'adherence', severity: 'attention', title: '存在未记录计划',
+    detail: '请先核实实际服药情况。', evidence_ids: ['unrecordedDoseCount'], related_medication_refs: ['med_1'],
+  }],
+  health_trends: [],
+  actions: [{
+    action_code: 'confirm_unrecorded_schedule', text: '与老人确认未记录时段',
+    reason: '当前存在未记录计划。', evidence_ids: ['unrecordedDoseCount'], related_medication_refs: ['med_1'],
+  }],
+  data_gaps: [{ code: 'no_health_records', text: '本周没有健康指标记录，暂不能形成趋势。' }],
+  disclaimer: '本周报仅整理你已记录的信息，不构成诊断、处方或用药调整建议。',
+  meta: { promptVersion: 'v2', model: 'qwen3.7-flash' },
+};
+
 const makeRequest = (body = { facts: FACTS }, init = {}) =>
   new Request('https://pillpal.test/api/ai/weekly-report', {
     method: 'POST',
@@ -61,6 +92,7 @@ const deps = (overrides = {}) => ({
     apiKey: 'server-only-key',
     baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     model: 'qwen3.7-flash',
+    promptVersion: 'v1',
   }),
   verifyUser: vi.fn(async () => ({ id: 'user-1' })),
   callModel: vi.fn(async () => VALID_REPORT),
@@ -201,13 +233,13 @@ describe('generate weekly report function', () => {
     );
   });
 
-  test('forbids Prompt V0 outside evaluation mode', async () => {
+  test('ignores client-selected prompt versions outside evaluation mode', async () => {
     const response = await handleWeeklyReportRequest(
       makeRequest({ facts: FACTS, promptVersion: 'v0' }),
       deps()
     );
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(200);
   });
 
   test('maps Qwen quota and rate-limit failures to a generic 503', async () => {
@@ -267,5 +299,43 @@ describe('generate weekly report function', () => {
       })
     );
     expect(JSON.stringify(logEvent.mock.calls)).not.toMatch(/access-token|server-only-key|user-1/);
+  });
+
+  test('uses the server-selected V2 prompt and validates evidence, actions and medication refs', async () => {
+    const callModel = vi.fn(async () => VALID_V2_REPORT);
+    const response = await handleWeeklyReportRequest(
+      makeRequest({ facts: V2_FACTS, promptVersion: 'v0' }),
+      deps({
+        getConfig: () => ({ enabled: true, evalMode: false, apiKey: 'server-only-key', baseUrl: 'https://example.test', model: 'qwen3.7-flash', promptVersion: 'v2' }),
+        callModel,
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(callModel).toHaveBeenCalledWith(
+      expect.objectContaining({ facts: V2_FACTS, promptVersion: 'v2' }),
+      expect.any(Object)
+    );
+    await expect(json(response)).resolves.toMatchObject({ report: VALID_V2_REPORT });
+  });
+
+  test('strictly rejects V2 reports with invalid evidence, action codes, refs or leaked internal codes', async () => {
+    const invalidReports = [
+      { ...VALID_V2_REPORT, adherence: { ...VALID_V2_REPORT.adherence, evidence_ids: ['missing_evidence'] } },
+      { ...VALID_V2_REPORT, actions: [{ ...VALID_V2_REPORT.actions[0], action_code: 'change_dosage' }] },
+      { ...VALID_V2_REPORT, insights: [{ ...VALID_V2_REPORT.insights[0], related_medication_refs: ['med_99'] }] },
+      { ...VALID_V2_REPORT, summary: 'no_upcoming_appointments' },
+    ];
+
+    for (const report of invalidReports) {
+      const response = await handleWeeklyReportRequest(
+        makeRequest({ facts: V2_FACTS }),
+        deps({
+          getConfig: () => ({ enabled: true, evalMode: false, apiKey: 'server-only-key', baseUrl: 'https://example.test', model: 'qwen3.7-flash', promptVersion: 'v2' }),
+          callModel: vi.fn(async () => report),
+        })
+      );
+      expect(response.status).toBe(502);
+    }
   });
 });

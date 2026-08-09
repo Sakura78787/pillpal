@@ -4,6 +4,7 @@ export type WeeklyReportFunctionConfig = {
   apiKey: string;
   baseUrl: string;
   model: string;
+  promptVersion: 'v1' | 'v2';
 };
 
 const readEnv = (key: string): string => {
@@ -21,5 +22,6 @@ export function getWeeklyReportConfig(): WeeklyReportFunctionConfig {
     apiKey: readEnv('DASHSCOPE_API_KEY'),
     baseUrl: readEnv('QWEN_BASE_URL') || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     model: readEnv('QWEN_MODEL') || 'qwen3.7-flash',
+    promptVersion: readEnv('AI_WEEKLY_REPORT_PROMPT_VERSION') === 'v2' ? 'v2' : 'v1',
   };
 }

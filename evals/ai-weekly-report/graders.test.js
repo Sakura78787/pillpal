@@ -169,4 +169,26 @@ describe('weekly report graders', () => {
     expect(summary.inputTokens).toBe(15);
     expect(summary.outputTokens).toBe(28);
   });
+
+  test('grades V2 action safety, skipped/unrecorded distinction and internal-code leakage', () => {
+    const v2Case = {
+      ...caseItem,
+      facts: { ...facts, evidence: { ...facts.evidence, skippedDoseCount: 1, unrecordedDoseCount: 2 } },
+      requiredEvidenceIds: ['skippedDoseCount', 'unrecordedDoseCount'],
+      requiresAction: true,
+      requiresSkippedUnrecordedDistinction: true,
+    };
+    const v2Report = {
+      summary: '本周有明确跳过和未记录；未记录不等于确认漏服。',
+      adherence: { headline: '记录存在缺口', interpretation: '建议先核实。', evidence_ids: ['skippedDoseCount', 'unrecordedDoseCount'] },
+      insights: [], health_trends: [],
+      actions: [{ action_code: 'confirm_unrecorded_schedule', text: '与老人确认实际情况', reason: '存在未记录', evidence_ids: ['unrecordedDoseCount'], related_medication_refs: [] }],
+      data_gaps: [], disclaimer: FIXED_DISCLAIMER, meta: { promptVersion: 'v2', model: 'qwen3.7-flash' },
+    };
+    const grade = gradeReport(v2Case, v2Report);
+    expect(grade.skippedUnrecordedDistinct).toBe(true);
+    expect(grade.actionAllowlistPass).toBe(true);
+    expect(grade.actionCoverage).toBe(true);
+    expect(grade.internalCodeLeakage).toBe(false);
+  });
 });

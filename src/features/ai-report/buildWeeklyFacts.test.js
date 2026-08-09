@@ -14,6 +14,11 @@ describe('buildWeeklyFacts', () => {
             user_id: 'user-1',
             name: 'Secret Medicine A',
             status: 'active',
+            frequency_type: 'daily',
+            frequency_config: { dailyTimes: 1 },
+            reminder_times: ['08:00'],
+            start_date: '2026-07-29',
+            dosage: 1,
             stock_quantity: 3,
             low_stock_threshold: 7,
             deleted_at: null,
@@ -22,6 +27,11 @@ describe('buildWeeklyFacts', () => {
             id: 'med-2',
             name: 'Secret Medicine B',
             status: 'active',
+            frequency_type: 'custom',
+            frequency_config: {},
+            reminder_times: [],
+            start_date: '2026-07-29',
+            dosage: 1,
             stock_quantity: 9,
             low_stock_threshold: 7,
           },
@@ -42,7 +52,7 @@ describe('buildWeeklyFacts', () => {
           { id: 'log-deleted', scheduled_date: '2026-08-01', status: 'taken', deleted_at: '2026-08-02T00:00:00.000Z' },
         ],
         healthRecords: [
-          { id: 'bp-1', record_type: 'blood_pressure', recorded_at: '2026-07-29T00:00:00.000+08:00', values: { systolic: 120 } },
+          { id: 'bp-1', record_type: 'blood_pressure', recorded_at: '2026-07-29T00:00:00.000+08:00', values: { systolic: 120, diastolic: 80 } },
           { id: 'sugar-1', record_type: 'blood_sugar', recorded_at: '2026-08-04T23:59:59.000+08:00', values: { value: 6.1 } },
           { id: 'weight-1', record_type: 'weight', recorded_at: '2026-07-28T23:59:59.000+08:00', values: { value: 50 } },
           { id: 'other-1', record_type: 'mood', recorded_at: '2026-08-01T00:00:00.000Z', values: { score: 4 } },
@@ -72,11 +82,13 @@ describe('buildWeeklyFacts', () => {
     });
     expect(facts.hasUpcomingAppointment).toBe(true);
     expect(facts.nextAppointmentInDays).toBe(3);
-    expect(facts.dataGapCodes).toEqual([]);
+    expect(facts.dueDoseCount).toBe(6);
+    expect(facts.excludedCustomMedicationCount).toBe(1);
+    expect(facts.dataGapCodes).toContain('custom_medications_excluded_from_rate');
 
     const serialized = JSON.stringify(facts);
-    expect(serialized).not.toMatch(/user-1|Secret|med-1|log-start|bp-1|appt-1|120|6\.1|private note/);
-    expect(facts).not.toHaveProperty('adherenceRate');
+    expect(serialized).not.toMatch(/user-1|Secret|daily-med|log-start|bp-1|appt-1|private note/);
+    expect(facts.recordedTakenRate).toBe(0);
     expect(new Set(Object.keys(facts.evidence)).size).toBe(Object.keys(facts.evidence).length);
   });
 
@@ -97,7 +109,7 @@ describe('buildWeeklyFacts', () => {
     expect(facts.nextAppointmentInDays).toBe(null);
     expect(facts.dataGapCodes).toEqual([
       'no_active_medications',
-      'no_recorded_checkins',
+      'no_due_doses',
       'no_health_records',
       'no_upcoming_appointments',
     ]);
