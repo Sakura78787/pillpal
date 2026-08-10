@@ -100,7 +100,19 @@ const ASYNC_DIAGNOSTIC_MESSAGES = {
   qwen_request_timeout: '模型响应超时，请稍后重试',
   background_invocation_failed: '后台生成服务暂时不可用，请稍后重试',
   background_stalled: '后台生成任务中断，请重新生成',
-  response_validation_failed: 'AI 返回格式未通过安全校验，请重新生成',
+  response_json_parse_failed: 'AI 返回内容不是有效 JSON，请重新生成',
+  schema_invalid: 'AI 返回结构不完整，请重新生成',
+  invalid_evidence_id: 'AI 引用了无效证据，请重新生成',
+  invalid_medication_ref: 'AI 引用了无效药物标识，请重新生成',
+  invalid_action_code: 'AI 返回了未授权行动，请重新生成',
+  invalid_data_gap_code: 'AI 返回了无效数据缺口，请重新生成',
+  internal_code_leakage: 'AI 文案包含内部代码，已停止展示',
+  job_persistence_failed: '周报结果保存失败，请重新生成',
+};
+
+const diagnosticError = (diagnostic) => {
+  const message = ASYNC_DIAGNOSTIC_MESSAGES[diagnostic] || 'AI 周报生成失败，请稍后重试';
+  return diagnostic ? `${message}（错误编号：${diagnostic}）` : message;
 };
 
 const weeklyReportJobSchema = z.object({
@@ -227,7 +239,7 @@ export async function waitForWeeklyReportJob({
     onStatus?.(lastJob.status);
     if (lastJob.status === 'succeeded') return { success: true, job: lastJob };
     if (lastJob.status === 'failed') {
-      return { success: false, job: lastJob, error: ASYNC_DIAGNOSTIC_MESSAGES[lastJob.diagnostic] || 'AI 周报生成失败，请稍后重试' };
+      return { success: false, job: lastJob, error: diagnosticError(lastJob.diagnostic) };
     }
     await sleep(pollIntervalMs, signal);
   }

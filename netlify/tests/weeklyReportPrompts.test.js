@@ -75,5 +75,12 @@ describe('weekly report prompt builder', () => {
     expect(messages[0].content.length).toBeLessThan(2200);
     const payload = JSON.parse(messages[1].content);
     expect(payload.allowed_actions.map((item) => item.action_code)).toContain('confirm_unrecorded_schedule');
+    expect(payload.valid_evidence_ids).toEqual(Object.keys(FACTS.evidence));
+    expect(payload.valid_medication_refs).toEqual([]);
+    expect(payload.valid_data_gap_codes).toEqual(FACTS.dataGapCodes);
+    expect(payload.allowed_action_codes).toContain('confirm_unrecorded_schedule');
+    expect(messages[0].content).toContain('没有内容时也必须返回 []');
+    expect(messages[0].content).not.toContain('"disclaimer"');
+    expect(messages[0].content).not.toContain('"meta"');
   });
 });

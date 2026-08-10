@@ -28,7 +28,14 @@ export type WeeklyReportJobRepository = {
   findOwned(jobId: string, userId: string): Promise<WeeklyReportJob | null>;
   claim(jobId: string, userId: string, now: Date): Promise<WeeklyReportJob | null>;
   complete(jobId: string, userId: string, input: { report: unknown; inputTokens: number; outputTokens: number; modelDurationMs: number; now: Date }): Promise<void>;
-  markFailed(jobId: string, userId: string, input: { errorCode: string; diagnostic: string; now?: Date }): Promise<void>;
+  markFailed(jobId: string, userId: string, input: {
+    errorCode: string;
+    diagnostic: string;
+    inputTokens?: number;
+    outputTokens?: number;
+    modelDurationMs?: number;
+    now?: Date;
+  }): Promise<void>;
 };
 
 const throwIfError = (error: unknown) => {
@@ -93,7 +100,7 @@ export function createWeeklyReportJobRepository(client: SupabaseClient): WeeklyR
 
     async complete(jobId, userId, { report, inputTokens, outputTokens, modelDurationMs, now }) {
       const timestamp = now.toISOString();
-      const { error } = await client
+      const { data, error } = await client
         .from('ai_weekly_report_jobs')
         .update({
           status: 'succeeded', report, error_code: null, diagnostic: null,
@@ -102,19 +109,31 @@ export function createWeeklyReportJobRepository(client: SupabaseClient): WeeklyR
         })
         .eq('id', jobId)
         .eq('user_id', userId)
-        .eq('status', 'running');
+        .eq('status', 'running')
+        .select('id')
+        .maybeSingle();
       throwIfError(error);
+      if (!data) throw new Error('Weekly report job update matched no rows');
     },
 
-    async markFailed(jobId, userId, { errorCode, diagnostic, now = new Date() }) {
+    async markFailed(jobId, userId, { errorCode, diagnostic, inputTokens, outputTokens, modelDurationMs, now = new Date() }) {
       const timestamp = now.toISOString();
-      const { error } = await client
+      const { data, error } = await client
         .from('ai_weekly_report_jobs')
-        .update({ status: 'failed', report: null, error_code: errorCode, diagnostic, completed_at: timestamp, updated_at: timestamp })
+        .update({
+          status: 'failed', report: null, error_code: errorCode, diagnostic,
+          ...(inputTokens !== undefined ? { input_tokens: inputTokens } : {}),
+          ...(outputTokens !== undefined ? { output_tokens: outputTokens } : {}),
+          ...(modelDurationMs !== undefined ? { model_duration_ms: modelDurationMs } : {}),
+          completed_at: timestamp, updated_at: timestamp,
+        })
         .eq('id', jobId)
         .eq('user_id', userId)
-        .in('status', ['queued', 'running']);
+        .in('status', ['queued', 'running'])
+        .select('id')
+        .maybeSingle();
       throwIfError(error);
+      if (!data) throw new Error('Weekly report job update matched no rows');
     },
   };
 }

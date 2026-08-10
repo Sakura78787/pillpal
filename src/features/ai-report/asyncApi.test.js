@@ -77,4 +77,24 @@ describe('async weekly report API', () => {
       error: '任务仍在处理中，可稍后继续查看',
     });
   });
+
+  test.each([
+    ['schema_invalid', 'AI 返回结构不完整'],
+    ['invalid_evidence_id', 'AI 引用了无效证据'],
+    ['invalid_medication_ref', 'AI 引用了无效药物标识'],
+    ['invalid_action_code', 'AI 返回了未授权行动'],
+    ['invalid_data_gap_code', 'AI 返回了无效数据缺口'],
+    ['internal_code_leakage', 'AI 文案包含内部代码'],
+    ['response_json_parse_failed', 'AI 返回内容不是有效 JSON'],
+    ['job_persistence_failed', '周报结果保存失败'],
+  ])('shows a Chinese message and safe error number for %s', async (diagnostic, message) => {
+    const result = await waitForWeeklyReportJob({
+      jobId: JOB.id,
+      getJob: vi.fn(async () => ({ success: true, job: { ...JOB, status: 'failed', diagnostic } })),
+      sleep: vi.fn(),
+    });
+
+    expect(result.error).toContain(message);
+    expect(result.error).toContain(`错误编号：${diagnostic}`);
+  });
 });

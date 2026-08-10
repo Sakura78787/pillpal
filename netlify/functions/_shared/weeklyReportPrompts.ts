@@ -29,10 +29,15 @@ const v2SchemaInstruction = `
   "insights": [{"category":"adherence|time_pattern|stock|health|appointment|data_quality","severity":"info|attention|action","title":"string","detail":"string","evidence_ids":["string"],"related_medication_refs":["med_1"]}],
   "health_trends": [{"metric":"blood_pressure|blood_sugar|weight","summary":"string","evidence_ids":["string"]}],
   "actions": [{"action_code":"候选行动代码","text":"string","reason":"string","evidence_ids":["string"],"related_medication_refs":["med_1"]}],
-  "data_gaps": [{"code":"输入中的缺口代码","text":"面向用户的简体中文说明"}],
-  "disclaimer": "${FIXED_WEEKLY_REPORT_DISCLAIMER}",
-  "meta": {"promptVersion":"v2","model":"model id"}
+  "data_gaps": [{"code":"输入中的缺口代码","text":"面向用户的简体中文说明"}]
 }`;
+
+const allowedValues = (facts: any) => ({
+  valid_evidence_ids: Object.keys(facts?.evidence || {}),
+  valid_medication_refs: Array.isArray(facts?.medicationSummaries) ? facts.medicationSummaries.map((item: any) => item.ref) : [],
+  valid_data_gap_codes: Array.isArray(facts?.dataGapCodes) ? facts.dataGapCodes : [],
+  allowed_action_codes: WEEKLY_REPORT_ACTIONS.map((item) => item.action_code),
+});
 
 export function buildWeeklyReportMessages({ facts, promptVersion, model }: { facts: unknown; promptVersion: 'v0' | 'v1' | 'v2'; model: string }) {
   const baseSystem = [
@@ -70,11 +75,55 @@ export function buildWeeklyReportMessages({ facts, promptVersion, model }: { fac
     '健康：只描述数值变化、记录频率和波动；不得判断病情、疗效、正常或异常，不得归因于药物。',
     '边界：不得诊断、开处方、修改剂量、建议停药换药或承诺结果。',
     '文案：仅用简体中文，用户文案不得出现内部英文代码；数据不足时说明局限，不得强行推断。',
+    '字段：insights、health_trends、actions、data_gaps 必须始终存在，没有内容时也必须返回 []。',
+    '内部代码：evidence ID、medication ref、data gap code、action code 只能出现在各自结构字段中，不能写入用户文案。',
+    '服务端会补充固定免责声明和 meta，你不得返回 disclaimer 或 meta。',
     v2SchemaInstruction,
   ].join('\n');
 
   return [
     { role: 'system', content: v2System },
-    { role: 'user', content: JSON.stringify({ facts, allowed_actions: WEEKLY_REPORT_ACTIONS, promptVersion: 'v2', model }) },
+    { role: 'user', content: JSON.stringify({
+      facts,
+      allowed_actions: WEEKLY_REPORT_ACTIONS,
+      ...allowedValues(facts),
+      promptVersion: 'v2',
+      model,
+    }) },
+  ];
+}
+
+export function buildWeeklyReportRepairMessages({
+  facts,
+  originalJson,
+  diagnostic,
+  path,
+}: {
+  facts: unknown;
+  originalJson: string;
+  diagnostic: string;
+  path?: string;
+}) {
+  return [
+    {
+      role: 'system',
+      content: [
+        '你只负责修正上一份家庭照护周报 JSON 的结构与非法引用，不得增加新的事实、数字、判断或行动。',
+        '必须保留原有安全边界：未记录不等于漏服；不得诊断、调整药物或判断指标正常异常。',
+        '所有数组字段必须存在，没有内容时返回 []；只能使用用户消息提供的允许值。',
+        '内部代码只能出现在对应结构字段，不得写入用户文案；只返回一个 JSON 对象。',
+        '服务端会补充 disclaimer 和 meta，你不得返回这两个字段。',
+        v2SchemaInstruction,
+      ].join('\n'),
+    },
+    {
+      role: 'user',
+      content: JSON.stringify({
+        facts,
+        original_json: originalJson,
+        validation_error: { diagnostic, ...(path ? { path } : {}) },
+        ...allowedValues(facts),
+      }),
+    },
   ];
 }
