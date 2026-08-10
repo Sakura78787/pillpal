@@ -18,6 +18,13 @@ type HandlerDeps = {
   logEvent?: (event: string, payload: Record<string, unknown>) => void;
 };
 
+export class QwenRequestTimeoutError extends Error {
+  constructor() {
+    super('Qwen request timed out');
+    this.name = 'QwenRequestTimeoutError';
+  }
+}
+
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json' } });
 const aiError = (code: string, error: string, status: number, diagnostic?: string) =>
   json(diagnostic ? { error, code, diagnostic } : { error, code }, status);
@@ -87,27 +94,50 @@ const validateReport = (report: unknown, facts: any, promptVersion: PromptVersio
   return parsed;
 };
 
-export async function callQwenWeeklyReport(input: { facts: unknown; promptVersion: PromptVersion }, config: WeeklyReportFunctionConfig) {
-  const response = await fetch(`${config.baseUrl.replace(/\/$/, '')}/chat/completions`, {
-    method: 'POST',
-    headers: { authorization: `Bearer ${config.apiKey}`, 'content-type': 'application/json' },
-    body: JSON.stringify({
-      model: config.model,
-      messages: buildWeeklyReportMessages({ facts: input.facts, promptVersion: input.promptVersion, model: config.model }),
-      temperature: 0.2,
-      response_format: { type: 'json_object' },
-      extra_body: { enable_thinking: false },
-    }),
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) return payload;
-  const content = payload?.choices?.[0]?.message?.content;
-  if (typeof content !== 'string') return payload;
-  return { report: JSON.parse(content), usage: sanitizeUsage(payload?.usage) };
+export async function callQwenWeeklyReport(
+  input: { facts: unknown; promptVersion: PromptVersion },
+  config: WeeklyReportFunctionConfig,
+  fetchImpl: typeof fetch = fetch
+) {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, config.requestTimeoutMs || 45000);
+
+  try {
+    const response = await fetchImpl(`${config.baseUrl.replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${config.apiKey}`, 'content-type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: config.model,
+        messages: buildWeeklyReportMessages({ facts: input.facts, promptVersion: input.promptVersion, model: config.model }),
+        temperature: 0.2,
+        max_tokens: config.maxOutputTokens || 1400,
+        response_format: { type: 'json_object' },
+        extra_body: { enable_thinking: false },
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) return payload;
+    const content = payload?.choices?.[0]?.message?.content;
+    if (typeof content !== 'string') return payload;
+    return { report: JSON.parse(content), usage: sanitizeUsage(payload?.usage) };
+  } catch (error) {
+    if (timedOut || (error instanceof DOMException && error.name === 'AbortError')) {
+      throw new QwenRequestTimeoutError();
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function handleWeeklyReportRequest(request: Request, deps: HandlerDeps) {
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+  const requestStartedAt = Date.now();
   const config = deps.getConfig();
   if (!config.enabled || !config.apiKey) {
     logWeeklyReportEvent(deps, 'weekly_report_config_unavailable', { reason: !config.enabled ? 'disabled' : 'missing_api_key', model: config.model });
@@ -118,8 +148,14 @@ export async function handleWeeklyReportRequest(request: Request, deps: HandlerD
     logWeeklyReportEvent(deps, 'weekly_report_auth_failure', { reason: 'missing_token' });
     return aiError('AI_WEEKLY_REPORT_AUTH_REQUIRED', 'Authentication required', 401);
   }
-  try { await deps.verifyUser(token); }
+  const authStartedAt = Date.now();
+  let authDurationMs = 0;
+  try {
+    await deps.verifyUser(token);
+    authDurationMs = Date.now() - authStartedAt;
+  }
   catch (error) {
+    authDurationMs = Date.now() - authStartedAt;
     if (error instanceof SupabaseAuthVerificationError && error.reason !== 'invalid_token') {
       logWeeklyReportEvent(deps, 'weekly_report_auth_failure', { reason: error.reason });
       return aiError('AI_WEEKLY_REPORT_AUTH_SERVICE_UNAVAILABLE', 'Authentication service is temporarily unavailable', 503);
@@ -140,31 +176,50 @@ export async function handleWeeklyReportRequest(request: Request, deps: HandlerD
   if (promptVersion === 'v2' && !weeklyFactsV2Schema.safeParse(parsedRequest.data.facts).success) {
     return aiError('AI_WEEKLY_REPORT_INVALID_INPUT', 'V2 weekly report facts required', 400);
   }
-  const startedAt = Date.now();
+  const modelStartedAt = Date.now();
   let modelResult: unknown;
   try {
     modelResult = await deps.callModel({ facts: parsedRequest.data.facts, promptVersion }, config);
-  } catch {
-    const diagnostic = 'qwen_request_failed';
-    logWeeklyReportEvent(deps, 'weekly_report_model_failure', { model: config.model, promptVersion, diagnostic, durationMs: Date.now() - startedAt });
+  } catch (error) {
+    const diagnostic = error instanceof QwenRequestTimeoutError ? 'qwen_request_timeout' : 'qwen_request_failed';
+    const modelDurationMs = Date.now() - modelStartedAt;
+    logWeeklyReportEvent(deps, 'weekly_report_model_failure', {
+      model: config.model, promptVersion, diagnostic, authDurationMs, modelDurationMs,
+      validationDurationMs: 0, totalDurationMs: Date.now() - requestStartedAt,
+    });
     return aiError('AI_WEEKLY_REPORT_GENERATION_FAILED', 'AI weekly report generation failed', 502, diagnostic);
   }
 
+  const modelDurationMs = Date.now() - modelStartedAt;
+
   if (isRecoverableQwenError(modelResult)) {
     const diagnostic = getQwenFailureDiagnostic(modelResult);
-    logWeeklyReportEvent(deps, 'weekly_report_model_unavailable', { model: config.model, promptVersion, diagnostic, durationMs: Date.now() - startedAt });
+    logWeeklyReportEvent(deps, 'weekly_report_model_unavailable', {
+      model: config.model, promptVersion, diagnostic, authDurationMs, modelDurationMs,
+      validationDurationMs: 0, totalDurationMs: Date.now() - requestStartedAt,
+    });
     return aiError('AI_WEEKLY_REPORT_MODEL_UNAVAILABLE', 'AI weekly report is temporarily unavailable', 503, diagnostic);
   }
 
+  const validationStartedAt = Date.now();
   try {
     const normalized = normalizeModelResult(modelResult);
     const report = validateReport(normalized.report, parsedRequest.data.facts, promptVersion, config.model);
     const usage = sanitizeUsage(normalized.usage);
-    logWeeklyReportEvent(deps, 'weekly_report_model_success', { model: config.model, promptVersion, durationMs: Date.now() - startedAt, inputTokens: usage?.inputTokens || 0, outputTokens: usage?.outputTokens || 0, totalTokens: usage?.totalTokens || 0 });
+    const validationDurationMs = Date.now() - validationStartedAt;
+    logWeeklyReportEvent(deps, 'weekly_report_model_success', {
+      model: config.model, promptVersion, authDurationMs, modelDurationMs, validationDurationMs,
+      totalDurationMs: Date.now() - requestStartedAt,
+      inputTokens: usage?.inputTokens || 0, outputTokens: usage?.outputTokens || 0, totalTokens: usage?.totalTokens || 0,
+    });
     return json(usage ? { report, usage } : { report });
   } catch {
     const diagnostic = 'response_validation_failed';
-    logWeeklyReportEvent(deps, 'weekly_report_model_failure', { model: config.model, promptVersion, diagnostic, durationMs: Date.now() - startedAt });
+    const validationDurationMs = Date.now() - validationStartedAt;
+    logWeeklyReportEvent(deps, 'weekly_report_model_failure', {
+      model: config.model, promptVersion, diagnostic, authDurationMs, modelDurationMs, validationDurationMs,
+      totalDurationMs: Date.now() - requestStartedAt,
+    });
     return aiError('AI_WEEKLY_REPORT_GENERATION_FAILED', 'AI weekly report generation failed', 502, diagnostic);
   }
 }

@@ -13,10 +13,15 @@ const SERVER_ERROR_MESSAGES = {
   AI_WEEKLY_REPORT_GENERATION_FAILED: 'AI 周报生成失败，请稍后重试',
 };
 
+const DIAGNOSTIC_MESSAGES = {
+  qwen_request_timeout: '模型响应超时，请稍后重试',
+};
+
 async function readServerError(response) {
   const fallback = 'AI 周报暂时不可用，请稍后重试';
   try {
     const payload = await response.json();
+    if (DIAGNOSTIC_MESSAGES[payload?.diagnostic]) return DIAGNOSTIC_MESSAGES[payload.diagnostic];
     const message = SERVER_ERROR_MESSAGES[payload?.code] || fallback;
     return payload?.diagnostic ? `${message}（诊断码：${payload.diagnostic}）` : message;
   } catch {

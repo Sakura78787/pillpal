@@ -1,5 +1,9 @@
 import { describe, expect, test, vi } from 'vitest';
-import { handleWeeklyReportRequest } from '../functions/generate-weekly-report.ts';
+import {
+  callQwenWeeklyReport,
+  handleWeeklyReportRequest,
+  QwenRequestTimeoutError,
+} from '../functions/generate-weekly-report.ts';
 import { SupabaseAuthVerificationError } from '../functions/_shared/verifySupabaseUser.ts';
 import { buildWeeklyFacts } from '../../src/features/ai-report/buildWeeklyFacts.js';
 
@@ -102,6 +106,33 @@ const deps = (overrides = {}) => ({
 const json = async (response) => response.json();
 
 describe('generate weekly report function', () => {
+  test('caps Qwen output and aborts the upstream request at the configured deadline', async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi.fn((_url, init) => new Promise((_resolve, reject) => {
+      init.signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+    }));
+    const config = {
+      apiKey: 'server-only-key',
+      baseUrl: 'https://example.test/v1',
+      model: 'qwen3.7-flash',
+      maxOutputTokens: 1400,
+      requestTimeoutMs: 45000,
+    };
+
+    const resultPromise = callQwenWeeklyReport(
+      { facts: FACTS, promptVersion: 'v1' },
+      config,
+      fetchImpl
+    );
+
+    const requestBody = JSON.parse(fetchImpl.mock.calls[0][1].body);
+    expect(requestBody.max_tokens).toBe(1400);
+    const timeoutExpectation = expect(resultPromise).rejects.toBeInstanceOf(QwenRequestTimeoutError);
+    await vi.advanceTimersByTimeAsync(45000);
+    await timeoutExpectation;
+    vi.useRealTimers();
+  });
+
   test('rejects non-POST requests', async () => {
     const response = await handleWeeklyReportRequest(new Request('https://pillpal.test/api/ai/weekly-report'), deps());
 
@@ -256,6 +287,20 @@ describe('generate weekly report function', () => {
     });
   });
 
+  test('returns a safe exact diagnostic when the upstream Qwen request times out', async () => {
+    const response = await handleWeeklyReportRequest(
+      makeRequest(),
+      deps({ callModel: vi.fn(async () => { throw new QwenRequestTimeoutError(); }) })
+    );
+
+    expect(response.status).toBe(502);
+    await expect(json(response)).resolves.toEqual({
+      error: 'AI weekly report generation failed',
+      code: 'AI_WEEKLY_REPORT_GENERATION_FAILED',
+      diagnostic: 'qwen_request_timeout',
+    });
+  });
+
   test('rejects model output that does not match the report schema', async () => {
     const response = await handleWeeklyReportRequest(
       makeRequest(),
@@ -295,6 +340,10 @@ describe('generate weekly report function', () => {
       expect.objectContaining({
         model: 'qwen3.7-flash',
         promptVersion: 'v1',
+        authDurationMs: expect.any(Number),
+        modelDurationMs: expect.any(Number),
+        validationDurationMs: expect.any(Number),
+        totalDurationMs: expect.any(Number),
         inputTokens: 10,
         outputTokens: 20,
         totalTokens: 30,

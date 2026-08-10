@@ -38,6 +38,23 @@ test('surfaces the safe upstream diagnostic without exposing model payloads', as
   expect(result.error).not.toContain('token');
 });
 
+test('shows a clear Chinese message for an upstream Qwen timeout', async () => {
+  const result = await generateWeeklyReport({
+    supabase,
+    facts,
+    fetchImpl: vi.fn(async () => new Response(JSON.stringify({
+      error: 'AI weekly report generation failed',
+      code: 'AI_WEEKLY_REPORT_GENERATION_FAILED',
+      diagnostic: 'qwen_request_timeout',
+    }), { status: 502 })),
+  });
+
+  expect(result).toMatchObject({
+    success: false,
+    error: '模型响应超时，请稍后重试',
+  });
+});
+
 test('allows a valid model response to complete after 30 seconds', async () => {
   vi.useFakeTimers();
   let requestSignal;

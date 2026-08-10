@@ -71,6 +71,8 @@ describe('weekly report prompt builder', () => {
     expect(messages[0].content).toContain('外出子女');
     expect(messages[0].content).toContain('未记录不等于确认漏服');
     expect(messages[0].content).toContain('不得判断病情');
+    expect(messages[0].content).toContain('summary 不超过120个汉字');
+    expect(messages[0].content.length).toBeLessThan(2200);
     const payload = JSON.parse(messages[1].content);
     expect(payload.allowed_actions.map((item) => item.action_code)).toContain('confirm_unrecorded_schedule');
   });
