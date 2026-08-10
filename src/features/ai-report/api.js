@@ -1,4 +1,5 @@
 import { weeklyFactsSchema, weeklyReportSchema } from './contracts.js';
+import { z } from 'zod';
 
 // Keep the browser deadline below Netlify's 60-second synchronous function limit,
 // while allowing the larger V2 structured response enough time to complete.
@@ -93,4 +94,143 @@ export async function generateWeeklyReport({
   } finally {
     clearTimeout(timeout);
   }
+}
+
+const ASYNC_DIAGNOSTIC_MESSAGES = {
+  qwen_request_timeout: '模型响应超时，请稍后重试',
+  background_invocation_failed: '后台生成服务暂时不可用，请稍后重试',
+  background_stalled: '后台生成任务中断，请重新生成',
+  response_validation_failed: 'AI 返回格式未通过安全校验，请重新生成',
+};
+
+const weeklyReportJobSchema = z.object({
+  id: z.string().min(1),
+  status: z.enum(['queued', 'running', 'succeeded', 'failed']),
+  report: weeklyReportSchema.optional(),
+  errorCode: z.string().nullable().optional(),
+  diagnostic: z.string().nullable().optional(),
+  createdAt: z.string(),
+  startedAt: z.string().nullable().optional(),
+  completedAt: z.string().nullable().optional(),
+  expiresAt: z.string(),
+});
+
+const getToken = async (supabase, refresh = false) => {
+  const { data, error } = refresh && typeof supabase.auth.refreshSession === 'function'
+    ? await supabase.auth.refreshSession()
+    : await supabase.auth.getSession();
+  return error ? '' : data?.session?.access_token || '';
+};
+
+const authenticatedFetch = async ({ supabase, url, init, fetchImpl, refreshFirst = false }) => {
+  let token = await getToken(supabase, refreshFirst);
+  if (!token && refreshFirst) token = await getToken(supabase, false);
+  if (!token) return null;
+  const send = (accessToken) => fetchImpl(url, {
+    ...init,
+    headers: { ...(init?.headers || {}), authorization: `Bearer ${accessToken}` },
+  });
+  let response = await send(token);
+  if (response.status === 401 && !refreshFirst) {
+    const refreshed = await getToken(supabase, true);
+    if (refreshed) response = await send(refreshed);
+  }
+  return response;
+};
+
+const readAsyncServerError = async (response) => {
+  const payload = await response.json().catch(() => ({}));
+  if (ASYNC_DIAGNOSTIC_MESSAGES[payload?.diagnostic]) return ASYNC_DIAGNOSTIC_MESSAGES[payload.diagnostic];
+  if (payload?.code === 'AI_WEEKLY_REPORT_JOB_EXPIRED') return '周报任务已过期，请重新生成';
+  if (payload?.code === 'AI_WEEKLY_REPORT_AUTH_REQUIRED') return '登录状态已失效，请重新登录';
+  if (payload?.code === 'AI_WEEKLY_REPORT_INVALID_INPUT') return '周报数据校验失败，请刷新后重试';
+  if (payload?.code === 'AI_WEEKLY_REPORT_NOT_CONFIGURED') return 'AI 周报服务尚未完成配置';
+  return 'AI 周报暂时不可用，请稍后重试';
+};
+
+export async function startWeeklyReportJob({ supabase, facts, fetchImpl = fetch }) {
+  const factsResult = weeklyFactsSchema.safeParse(facts);
+  if (!factsResult.success || !('dueDoseCount' in factsResult.data)) {
+    return { success: false, job: null, error: '周报数据不完整，请刷新后重试' };
+  }
+  try {
+    const response = await authenticatedFetch({
+      supabase,
+      url: '/api/ai/weekly-report/jobs',
+      init: { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ facts: factsResult.data }) },
+      fetchImpl,
+      refreshFirst: true,
+    });
+    if (!response) return { success: false, job: null, error: '请先登录后再生成周报' };
+    if (!response.ok) return { success: false, job: null, error: await readAsyncServerError(response) };
+    const payload = await response.json();
+    const parsedJob = weeklyReportJobSchema.safeParse(payload.job);
+    if (!parsedJob.success) return { success: false, job: null, error: '周报任务创建失败，请稍后重试' };
+    return { success: true, job: parsedJob.data, pollAfterMs: Number(payload.pollAfterMs) || 2000 };
+  } catch {
+    return { success: false, job: null, error: '周报任务创建失败，请稍后重试' };
+  }
+}
+
+export async function getWeeklyReportJob({ supabase, jobId, fetchImpl = fetch }) {
+  try {
+    const response = await authenticatedFetch({
+      supabase,
+      url: `/api/ai/weekly-report/jobs/${encodeURIComponent(jobId)}`,
+      init: { method: 'GET' },
+      fetchImpl,
+    });
+    if (!response) return { success: false, job: null, error: '请先登录后再查看周报' };
+    if (!response.ok) return {
+      success: false,
+      job: null,
+      expired: response.status === 410,
+      transient: response.status === 429 || response.status >= 500,
+      error: await readAsyncServerError(response),
+    };
+    const payload = await response.json();
+    const parsedJob = weeklyReportJobSchema.safeParse(payload.job);
+    if (!parsedJob.success) return { success: false, job: null, error: '周报任务状态异常，请重新生成' };
+    return { success: true, job: parsedJob.data };
+  } catch {
+    return { success: false, transient: true, job: null, error: '查询周报任务失败，请稍后重试' };
+  }
+}
+
+const defaultSleep = (ms, signal) => new Promise((resolve) => {
+  const timeout = setTimeout(resolve, ms);
+  signal?.addEventListener('abort', () => { clearTimeout(timeout); resolve(); }, { once: true });
+});
+
+export async function waitForWeeklyReportJob({
+  jobId,
+  getJob,
+  pollIntervalMs = 2000,
+  maxWaitMs = 180000,
+  sleep = defaultSleep,
+  now = Date.now,
+  signal,
+  onStatus,
+}) {
+  const startedAt = now();
+  let lastJob = null;
+  while (now() - startedAt < maxWaitMs && !signal?.aborted) {
+    const result = await getJob(jobId);
+    if (!result.success) {
+      if (result.transient) {
+        await sleep(pollIntervalMs, signal);
+        continue;
+      }
+      return result;
+    }
+    lastJob = result.job;
+    onStatus?.(lastJob.status);
+    if (lastJob.status === 'succeeded') return { success: true, job: lastJob };
+    if (lastJob.status === 'failed') {
+      return { success: false, job: lastJob, error: ASYNC_DIAGNOSTIC_MESSAGES[lastJob.diagnostic] || 'AI 周报生成失败，请稍后重试' };
+    }
+    await sleep(pollIntervalMs, signal);
+  }
+  if (signal?.aborted) return { success: false, cancelled: true, job: lastJob, error: '' };
+  return { success: false, pending: true, job: lastJob, error: '任务仍在处理中，可稍后继续查看' };
 }

@@ -7,6 +7,9 @@ export type WeeklyReportFunctionConfig = {
   promptVersion: 'v1' | 'v2';
   maxOutputTokens: number;
   requestTimeoutMs: number;
+  backgroundRequestTimeoutMs: number;
+  supabaseUrl: string;
+  supabaseSecretKey: string;
 };
 
 const readEnv = (key: string): string => {
@@ -32,5 +35,8 @@ export function getWeeklyReportConfig(): WeeklyReportFunctionConfig {
     promptVersion: readEnv('AI_WEEKLY_REPORT_PROMPT_VERSION') === 'v2' ? 'v2' : 'v1',
     maxOutputTokens: readPositiveInt('QWEN_MAX_OUTPUT_TOKENS', 1400),
     requestTimeoutMs: readPositiveInt('QWEN_REQUEST_TIMEOUT_MS', 45000),
+    backgroundRequestTimeoutMs: readPositiveInt('QWEN_BACKGROUND_REQUEST_TIMEOUT_MS', 90000),
+    supabaseUrl: readEnv('SUPABASE_URL') || readEnv('VITE_SUPABASE_URL'),
+    supabaseSecretKey: readEnv('SUPABASE_SECRET_KEY'),
   };
 }

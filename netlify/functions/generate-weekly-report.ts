@@ -29,9 +29,9 @@ const json = (value: unknown, status = 200) => new Response(JSON.stringify(value
 const aiError = (code: string, error: string, status: number, diagnostic?: string) =>
   json(diagnostic ? { error, code, diagnostic } : { error, code }, status);
 const extractBearerToken = (request: Request) => request.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1] || '';
-const isRecoverableQwenError = (value: unknown) => /AllocationQuota\.FreeTierOnly|quota|rate.?limit|429/i.test(JSON.stringify(value));
+export const isRecoverableQwenError = (value: unknown) => /AllocationQuota\.FreeTierOnly|quota|rate.?limit|429/i.test(JSON.stringify(value));
 
-const getQwenFailureDiagnostic = (value: unknown) => {
+export const getQwenFailureDiagnostic = (value: unknown) => {
   const serialized = JSON.stringify(value);
   if (/AllocationQuota\.FreeTierOnly/i.test(serialized)) return 'qwen_free_tier_quota';
   if (/Throttling\.AllocationQuota|insufficient_quota|quota/i.test(serialized)) return 'qwen_quota_exhausted';
@@ -44,11 +44,11 @@ const logWeeklyReportEvent = (deps: HandlerDeps, event: string, payload: Record<
   (deps.logEvent || ((name, value) => console.log(name, JSON.stringify(value))))(event, payload);
 };
 
-const normalizeModelResult = (value: unknown) => value && typeof value === 'object' && 'report' in value
+export const normalizeModelResult = (value: unknown) => value && typeof value === 'object' && 'report' in value
   ? value as { report: unknown; usage?: unknown }
   : { report: value, usage: undefined };
 
-const sanitizeUsage = (usage: unknown) => {
+export const sanitizeUsage = (usage: unknown) => {
   if (!usage || typeof usage !== 'object') return undefined;
   const value = usage as Record<string, unknown>;
   const inputTokens = Number(value.inputTokens || value.prompt_tokens || 0);
@@ -71,7 +71,7 @@ const userTextFromV2 = (report: any) => [
   ...(report.data_gaps || []).map((item: any) => item.text),
 ].filter(Boolean).join('\n');
 
-const validateReport = (report: unknown, facts: any, promptVersion: PromptVersion, model: string) => {
+export const validateReport = (report: unknown, facts: any, promptVersion: PromptVersion, model: string) => {
   if (promptVersion !== 'v2') {
     const normalized = { ...(report as object), disclaimer: FIXED_WEEKLY_REPORT_DISCLAIMER, meta: { promptVersion, model } };
     const parsed = weeklyReportV1Schema.parse(normalized);

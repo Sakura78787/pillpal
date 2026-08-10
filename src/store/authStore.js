@@ -8,6 +8,7 @@ import {
   updateProfile,
 } from '@/api/auth';
 import { AuthStatus } from '@/types/auth';
+import { clearAllWeeklyReportJobs } from '@/features/ai-report/jobStorage';
 
 export const useAuthStore = create((set) => ({
   authStatus: AuthStatus.AUTHENTICATING,
@@ -100,6 +101,7 @@ export const useAuthStore = create((set) => ({
     const { success, error } = await signOut();
 
     if (success) {
+      clearAllWeeklyReportJobs();
       set({
         authStatus: AuthStatus.UNAUTHENTICATED,
         user: null,
@@ -132,6 +134,7 @@ export const useAuthStore = create((set) => ({
         }
 
         if (event === 'SIGNED_OUT') {
+          clearAllWeeklyReportJobs();
           set({
             authStatus: AuthStatus.UNAUTHENTICATED,
             user: null,
