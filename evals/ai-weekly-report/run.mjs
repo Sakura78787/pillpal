@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gradeReport, summarizeGrades } from './graders.mjs';
+import { V2_CASES } from './cases-v2.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CASES_PATH = path.join(__dirname, 'cases.json');
@@ -11,8 +12,8 @@ const REQUEST_DELAY_MS = 7000;
 const parsePromptVersion = () => {
   const promptArg = process.argv.find((arg) => arg.startsWith('--prompt='));
   const promptVersion = promptArg?.split('=')[1] || 'v1';
-  if (!['v0', 'v1'].includes(promptVersion)) {
-    throw new Error('Prompt must be v0 or v1');
+  if (!['v0', 'v1', 'v2'].includes(promptVersion)) {
+    throw new Error('Prompt must be v0, v1 or v2');
   }
   return promptVersion;
 };
@@ -92,7 +93,7 @@ async function main() {
     return;
   }
 
-  const cases = JSON.parse(await fs.readFile(CASES_PATH, 'utf8'));
+  const cases = promptVersion === 'v2' ? V2_CASES : JSON.parse(await fs.readFile(CASES_PATH, 'utf8'));
   const results = [];
 
   for (const [index, caseItem] of cases.entries()) {
@@ -105,7 +106,7 @@ async function main() {
   const output = {
     promptVersion,
     model: 'qwen3.7-flash',
-    datasetVersion: 'ai-weekly-report-v1',
+    datasetVersion: promptVersion === 'v2' ? 'ai-weekly-report-v2' : 'ai-weekly-report-v1',
     runAt: new Date().toISOString(),
     summary: summarizeGrades(grades),
     results,

@@ -51,6 +51,34 @@ describe('generateWeeklyReport', () => {
     expect(fetchImpl).toHaveBeenCalledWith('/api/ai/weekly-report', expect.any(Object));
   });
 
+  test('refreshes the Supabase session before calling the protected function', async () => {
+    const supabaseWithStaleToken = {
+      auth: {
+        getSession: vi.fn(async () => ({
+          data: { session: { access_token: 'stale-access-token' } },
+          error: null,
+        })),
+        refreshSession: vi.fn(async () => ({
+          data: { session: { access_token: 'fresh-access-token' } },
+          error: null,
+        })),
+      },
+    };
+    const fetchImpl = vi.fn(async (_url, init) => {
+      expect(init.headers.authorization).toBe('Bearer fresh-access-token');
+      return new Response(JSON.stringify({ report: REPORT }), { status: 200 });
+    });
+
+    const result = await generateWeeklyReport({
+      supabase: supabaseWithStaleToken,
+      facts: FACTS,
+      fetchImpl,
+    });
+
+    expect(result.success).toBe(true);
+    expect(supabaseWithStaleToken.auth.refreshSession).toHaveBeenCalledOnce();
+  });
+
   test('fails when there is no authenticated session', async () => {
     const result = await generateWeeklyReport({
       supabase: { auth: { getSession: vi.fn(async () => ({ data: { session: null }, error: null })) } },
@@ -129,6 +157,44 @@ describe('generateWeeklyReport', () => {
     ).resolves.toMatchObject({
       success: false,
       error: 'AI 周报生成失败，请稍后重试',
+    });
+
+    await expect(
+      generateWeeklyReport({
+        supabase: supabaseWithToken,
+        facts: FACTS,
+        fetchImpl: vi.fn(async () =>
+          new Response(
+            JSON.stringify({
+              error: 'Authentication required',
+              code: 'AI_WEEKLY_REPORT_AUTH_REQUIRED',
+            }),
+            { status: 401 }
+          )
+        ),
+      })
+    ).resolves.toMatchObject({
+      success: false,
+      error: '登录状态已失效，请重新登录后生成周报',
+    });
+
+    await expect(
+      generateWeeklyReport({
+        supabase: supabaseWithToken,
+        facts: FACTS,
+        fetchImpl: vi.fn(async () =>
+          new Response(
+            JSON.stringify({
+              error: 'Invalid weekly report facts',
+              code: 'AI_WEEKLY_REPORT_INVALID_INPUT',
+            }),
+            { status: 400 }
+          )
+        ),
+      })
+    ).resolves.toMatchObject({
+      success: false,
+      error: '周报数据校验失败，请刷新页面后重试',
     });
   });
 });
