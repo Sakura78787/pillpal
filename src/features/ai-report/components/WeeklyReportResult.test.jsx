@@ -25,4 +25,64 @@ describe('WeeklyReportResult V2', () => {
     expect(html).not.toContain('time_evening_unrecorded');
     expect(html).not.toContain('no_health_records');
   });
+
+  test('formats percentage, date, stock and health evidence with explicit Chinese labels and units', () => {
+    const evidenceReport = {
+      ...report,
+      adherence: {
+        ...report.adherence,
+        evidence_ids: ['recordedTakenRatePercent', 'recordedTakenRate', 'affectedDateCount', 'futureEvidence'],
+      },
+      insights: [{
+        ...report.insights[0],
+        evidence_ids: ['med_1_stock_days'],
+      }],
+      health_trends: [
+        {
+          metric: 'blood_pressure',
+          summary: '本周仅有一条血压记录。',
+          evidence_ids: ['health_bp_systolic_latest', 'health_bp_diastolic_latest'],
+        },
+        {
+          metric: 'blood_sugar',
+          summary: '本周仅有一条空腹血糖记录。',
+          evidence_ids: ['health_sugar_fasting_latest'],
+        },
+        {
+          metric: 'weight',
+          summary: '本周仅有一条体重记录。',
+          evidence_ids: ['health_weight_latest'],
+        },
+      ],
+    };
+    const evidenceFacts = {
+      ...facts,
+      evidence: {
+        recordedTakenRatePercent: 14,
+        recordedTakenRate: 0.14,
+        affectedDateCount: 6,
+        med_1_stock_days: 8,
+        health_bp_systolic_latest: 125,
+        health_bp_diastolic_latest: 85,
+        health_sugar_fasting_latest: 6.1,
+        health_weight_latest: 68,
+        futureEvidence: 3,
+      },
+    };
+
+    const html = renderToStaticMarkup(<WeeklyReportResult report={evidenceReport} facts={evidenceFacts} />);
+
+    expect(html).toContain('记录口径完成比例：14%');
+    expect(html).not.toContain('1400%');
+    expect(html).toContain('涉及日期：6天');
+    expect(html).toContain('预计库存可用：8天');
+    expect(html).toContain('收缩压：125 mmHg');
+    expect(html).toContain('舒张压：85 mmHg');
+    expect(html).toContain('空腹血糖：6.1 mmol/L');
+    expect(html).toContain('体重：68 kg');
+    expect(html).toContain('相关数据：3');
+    expect(html).not.toContain('futureEvidence');
+    expect(html).not.toContain('health_bp_systolic_latest');
+    expect(html).not.toContain('med_1_stock_days');
+  });
 });
