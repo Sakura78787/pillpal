@@ -120,6 +120,28 @@ const userTextFromV2 = (report: any) => [
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const containsInternalToken = (text: string, token: string) => new RegExp(`(^|[^A-Za-z0-9_])${escapeRegExp(token)}([^A-Za-z0-9_]|$)`).test(text);
 
+const normalizeMedicationRefs = (value: unknown) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') return [value];
+  if (value == null) return [];
+  return value;
+};
+
+export const normalizeV2ReportShape = (report: unknown) => {
+  if (!report || typeof report !== 'object' || Array.isArray(report)) return report;
+  const value = report as Record<string, unknown>;
+  const normalizeItems = (items: unknown) => Array.isArray(items)
+    ? items.map((item) => item && typeof item === 'object' && !Array.isArray(item)
+      ? { ...item, related_medication_refs: normalizeMedicationRefs((item as Record<string, unknown>).related_medication_refs) }
+      : item)
+    : items;
+  return {
+    ...value,
+    insights: normalizeItems(value.insights),
+    actions: normalizeItems(value.actions),
+  };
+};
+
 export const validateReport = (report: unknown, facts: any, promptVersion: PromptVersion, model: string) => {
   if (promptVersion !== 'v2') {
     const normalized = { ...(report as object), disclaimer: FIXED_WEEKLY_REPORT_DISCLAIMER, meta: { promptVersion, model } };
@@ -140,7 +162,8 @@ export const validateReport = (report: unknown, facts: any, promptVersion: Promp
     const path = error instanceof ZodError ? error.issues[0]?.path.join('.') || 'root' : 'root';
     throw new ReportValidationError('schema_invalid', path);
   }
-  const raw = report && typeof report === 'object' ? report as any : {};
+  const normalizedReport = normalizeV2ReportShape(report);
+  const raw = normalizedReport && typeof normalizedReport === 'object' ? normalizedReport as any : {};
   const validIds = new Set(Object.keys(v2Facts.evidence));
   const rawEvidenceIds = [
     ...(Array.isArray(raw.adherence?.evidence_ids) ? raw.adherence.evidence_ids : []),
@@ -162,7 +185,7 @@ export const validateReport = (report: unknown, facts: any, promptVersion: Promp
   if (Array.isArray(raw.data_gaps) && raw.data_gaps.some((item: any) => typeof item?.code === 'string' && !validGapCodes.has(item.code))) {
     throw new ReportValidationError('invalid_data_gap_code');
   }
-  const normalized = { ...(report as object), disclaimer: FIXED_WEEKLY_REPORT_DISCLAIMER, meta: { promptVersion: 'v2', model } };
+  const normalized = { ...(normalizedReport as object), disclaimer: FIXED_WEEKLY_REPORT_DISCLAIMER, meta: { promptVersion: 'v2', model } };
   let parsed;
   try { parsed = weeklyReportV2Schema.parse(normalized); }
   catch (error) {

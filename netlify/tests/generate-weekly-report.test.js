@@ -391,6 +391,31 @@ describe('generate weekly report function', () => {
     expect(JSON.stringify(error)).not.toMatch(/不应发给模型的药名|no_upcoming_appointments/);
   });
 
+  test.each([
+    ['a single valid ref', 'med_1', ['med_1']],
+    ['an omitted optional association', undefined, []],
+    ['a null optional association', null, []],
+  ])('normalizes %s in related_medication_refs without weakening ref validation', (_label, rawRefs, expectedRefs) => {
+    const report = {
+      ...VALID_V2_REPORT,
+      insights: [{ ...VALID_V2_REPORT.insights[0], related_medication_refs: rawRefs }],
+    };
+
+    const parsed = validateReport(report, V2_FACTS, 'v2', 'qwen3.7-flash');
+
+    expect(parsed.insights[0].related_medication_refs).toEqual(expectedRefs);
+  });
+
+  test('still rejects an invalid scalar medication ref after shape normalization', () => {
+    const report = {
+      ...VALID_V2_REPORT,
+      insights: [{ ...VALID_V2_REPORT.insights[0], related_medication_refs: 'med_99' }],
+    };
+
+    expect(() => validateReport(report, V2_FACTS, 'v2', 'qwen3.7-flash'))
+      .toThrow(expect.objectContaining({ diagnostic: 'invalid_medication_ref' }));
+  });
+
   test('classifies invalid upstream JSON separately from transport failures', async () => {
     const fetchImpl = vi.fn(async () => Response.json({
       choices: [{ message: { content: '{"summary":' } }],
