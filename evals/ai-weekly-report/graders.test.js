@@ -229,6 +229,21 @@ describe('weekly report graders', () => {
     expect(summary.p95LatencyMs).toBe(40000);
   });
 
+  test('summarizes categories without requiring Object.groupBy', () => {
+    const originalGroupBy = Object.groupBy;
+    Object.groupBy = undefined;
+
+    try {
+      const summary = summarizeGrades([
+        gradeReport(caseItem, validReport, { success: true }),
+      ]);
+
+      expect(summary.categoryBreakdown.typical.caseCount).toBe(1);
+    } finally {
+      Object.groupBy = originalGroupBy;
+    }
+  });
+
   test('grades V2 action safety, skipped/unrecorded distinction and internal-code leakage', () => {
     const v2Case = {
       ...caseItem,

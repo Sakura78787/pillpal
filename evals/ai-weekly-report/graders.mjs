@@ -130,7 +130,11 @@ const summarizeCore = (grades) => {
 
 export function summarizeGrades(grades) {
   const summary = summarizeCore(grades);
-  const categories = Object.groupBy(grades, (item) => item.category || 'uncategorized');
+  const categories = grades.reduce((grouped, item) => {
+    const category = item.category || 'uncategorized';
+    (grouped[category] ||= []).push(item);
+    return grouped;
+  }, {});
   summary.jsonRepairRate = rate(grades, (item) => item.repairTriggered);
   summary.averageModelCallCount = grades.length
     ? grades.reduce((sum, item) => sum + (item.modelCallCount || 1), 0) / grades.length
