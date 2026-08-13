@@ -19,10 +19,56 @@ const json = (value: unknown, status = 200) => Response.json(value, { status });
 const tokenFrom = (request: Request) => request.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1] || '';
 const authorizationFrom = (request: Request) => request.headers.get('authorization') || '';
 
-const publicJob = (job: WeeklyReportJob) => ({
+const readEvalMeta = (report: unknown) => {
+  if (!report || typeof report !== 'object') return null;
+  const value = (report as Record<string, unknown>)._evalMeta;
+  if (!value || typeof value !== 'object') return null;
+  const meta = value as Record<string, unknown>;
+  return {
+    modelCallCount: Number(meta.modelCallCount) || 1,
+    repairTriggered: meta.repairTriggered === true,
+    modelDurationMs: Number(meta.modelDurationMs) || 0,
+    validationDurationMs: Number(meta.validationDurationMs) || 0,
+    totalDurationMs: Number(meta.totalDurationMs) || 0,
+    inputTokens: Number(meta.inputTokens) || 0,
+    outputTokens: Number(meta.outputTokens) || 0,
+  };
+};
+
+const VALIDATION_FAILURES_AFTER_REPAIR = new Set([
+  'response_json_parse_failed',
+  'schema_invalid',
+  'invalid_evidence_id',
+  'invalid_medication_ref',
+  'invalid_action_code',
+  'invalid_data_gap_code',
+  'internal_code_leakage',
+]);
+
+const failedEvalMeta = (job: WeeklyReportJob) => ({
+  modelCallCount: VALIDATION_FAILURES_AFTER_REPAIR.has(job.diagnostic || '')
+    || job.diagnostic?.startsWith('repair_')
+    || job.diagnostic?.startsWith('qwen_repair_') ? 2 : 1,
+  repairTriggered: VALIDATION_FAILURES_AFTER_REPAIR.has(job.diagnostic || '')
+    || job.diagnostic?.startsWith('repair_')
+    || job.diagnostic?.startsWith('qwen_repair_') || false,
+  modelDurationMs: Number(job.model_duration_ms) || 0,
+  validationDurationMs: 0,
+  totalDurationMs: job.started_at && job.completed_at
+    ? Math.max(0, new Date(job.completed_at).getTime() - new Date(job.started_at).getTime())
+    : 0,
+  inputTokens: Number(job.input_tokens) || 0,
+  outputTokens: Number(job.output_tokens) || 0,
+});
+
+const publicJob = (job: WeeklyReportJob, evalMode = false) => ({
   id: job.id,
   status: job.status,
   ...(job.status === 'succeeded' ? { report: weeklyReportV2Schema.parse(job.report) } : {}),
+  ...(job.status === 'succeeded' && evalMode && readEvalMeta(job.report)
+    ? { evalMeta: readEvalMeta(job.report) }
+    : {}),
+  ...(job.status === 'failed' && evalMode ? { evalMeta: failedEvalMeta(job) } : {}),
   ...(job.status === 'failed' ? { errorCode: job.error_code, diagnostic: job.diagnostic } : {}),
   createdAt: job.created_at,
   startedAt: job.started_at,
@@ -111,7 +157,7 @@ async function getJob(request: Request, jobId: string, deps: JobsDeps) {
     });
     job = { ...job, status: 'failed', error_code: 'AI_WEEKLY_REPORT_GENERATION_FAILED', diagnostic: 'background_stalled', completed_at: now.toISOString() };
   }
-  return json({ job: publicJob(job) });
+  return json({ job: publicJob(job, deps.getConfig().evalMode) });
 }
 
 export async function handleWeeklyReportJobsRequest(request: Request, context: Pick<Context, 'params'>, deps: JobsDeps) {

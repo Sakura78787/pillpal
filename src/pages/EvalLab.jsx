@@ -22,8 +22,8 @@ const EvalLab = () => {
 
       <main className="mx-auto max-w-5xl px-4 py-6">
         <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
-          这个页面只读取已提交的评测快照，不会在浏览器中批量调用模型。它用于展示 Prompt V0/V1
-          的真实对比、自动指标、失败样本和发布门槛。
+          这个页面只读取已提交的评测快照，不会在浏览器中批量调用模型。评测将模型质量与工程可靠性分开评价，
+          同时展示历史 Prompt 对比、当前生产版本、自动指标、人工抽检与 Bad Case。
         </div>
         <EvalSummary snapshot={evalSnapshot} />
       </main>

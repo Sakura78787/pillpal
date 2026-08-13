@@ -163,12 +163,14 @@ export async function handleProcessWeeklyReportRequest(request: Request, deps: P
         ...(firstValidationError.path ? { path: firstValidationError.path } : {}),
       });
     } catch (repairError) {
-      const diagnostic = repairError instanceof QwenRequestTimeoutError ? 'qwen_request_timeout' : 'qwen_request_failed';
+      const diagnostic = repairError instanceof QwenRequestTimeoutError
+        ? 'qwen_repair_request_timeout'
+        : 'qwen_repair_request_failed';
       await persistFailure({ errorCode: 'AI_WEEKLY_REPORT_GENERATION_FAILED', diagnostic, stage: 'model' });
       return noContent();
     }
     if (isQwenUpstreamFailure(repairCall.result)) {
-      const diagnostic = getQwenFailureDiagnostic(repairCall.result);
+      const diagnostic = `repair_${getQwenFailureDiagnostic(repairCall.result)}`;
       await persistFailure({ errorCode: 'AI_WEEKLY_REPORT_MODEL_UNAVAILABLE', diagnostic, stage: 'model' });
       return noContent();
     }
@@ -190,8 +192,22 @@ export async function handleProcessWeeklyReportRequest(request: Request, deps: P
 
   const persistenceStartedAt = Date.now();
   try {
+    const persistedReport = config.evalMode
+      ? {
+          ...report,
+          _evalMeta: {
+            modelCallCount,
+            repairTriggered: modelCallCount > 1,
+            modelDurationMs,
+            validationDurationMs,
+            totalDurationMs: Date.now() - requestStartedAt,
+            inputTokens,
+            outputTokens,
+          },
+        }
+      : report;
     await deps.jobs.complete(claimed.id, user.id, {
-      report, inputTokens, outputTokens, modelDurationMs, now: deps.now(),
+      report: persistedReport, inputTokens, outputTokens, modelDurationMs, now: deps.now(),
     });
     persistenceDurationMs += Date.now() - persistenceStartedAt;
     safeLog(deps, 'weekly_report_background_succeeded', {

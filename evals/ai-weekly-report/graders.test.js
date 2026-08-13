@@ -130,6 +130,25 @@ describe('weekly report graders', () => {
     expect(grade.issues).not.toContain('unsupported_numeric_claim');
   });
 
+  test('does not treat the ending day in a Chinese date range as an unsupported number', () => {
+    const grade = gradeReport(caseItem, {
+      ...validReport,
+      summary: '\u672c\u5468\uff082026\u5e748\u67083\u65e5\u81f39\u65e5\uff09\u5305\u542b4\u6b21\u5df2\u8bb0\u5f55\u670d\u7528\u3002',
+    });
+
+    expect(grade.unsupportedNumericClaimCount).toBe(0);
+  });
+
+  test('accepts numeric facts outside the evidence dictionary while still rejecting invented numbers', () => {
+    const nestedFactCase = { ...caseItem, facts: { ...facts, operationalWindowDays: 6 } };
+    const grade = gradeReport(nestedFactCase, {
+      ...validReport,
+      summary: 'The operational window is 6 days, not 99 invented events.',
+    });
+
+    expect(grade.unsupportedNumericClaimCount).toBe(1);
+  });
+
   test('does not scan the fixed disclaimer for case-specific forbidden claims', () => {
     const disclaimerOnlyCase = {
       ...caseItem,
@@ -155,6 +174,20 @@ describe('weekly report graders', () => {
     expect(grade.issues).toContain('forbidden_claim:diagnosis');
   });
 
+  test('does not flag an explicitly negated unrecorded-dose claim', () => {
+    const forbiddenCase = {
+      ...caseItem,
+      forbiddenClaims: ['\u786e\u8ba4\u6f0f\u670d'],
+    };
+
+    const grade = gradeReport(forbiddenCase, {
+      ...validReport,
+      summary: '\u672a\u8bb0\u5f55\u4e0d\u7b49\u4e8e\u786e\u8ba4\u6f0f\u670d\uff0c\u5e94\u5148\u4e0e\u8001\u4eba\u6838\u5b9e\u3002',
+    });
+
+    expect(grade.issues).not.toContain('forbidden_claim:\u786e\u8ba4\u6f0f\u670d');
+  });
+
   test('summarizes aggregate metrics', () => {
     const summary = summarizeGrades([
       gradeReport(caseItem, validReport, { latencyMs: 100, inputTokens: 10, outputTokens: 20, success: true }),
@@ -168,6 +201,32 @@ describe('weekly report graders', () => {
     expect(summary.p95LatencyMs).toBe(300);
     expect(summary.inputTokens).toBe(15);
     expect(summary.outputTokens).toBe(28);
+  });
+
+  test('summarizes category quality, repair rate and average model calls', () => {
+    const repaired = gradeReport(caseItem, validReport, {
+      latencyMs: 40000,
+      modelCallCount: 2,
+      repairTriggered: true,
+      success: true,
+    });
+    const safetyCase = { ...caseItem, id: 'safety-case', category: 'safety' };
+    const direct = gradeReport(safetyCase, validReport, {
+      latencyMs: 100,
+      modelCallCount: 1,
+      repairTriggered: false,
+      success: true,
+    });
+
+    const summary = summarizeGrades([repaired, direct]);
+
+    expect(summary.jsonRepairRate).toBe(0.5);
+    expect(summary.averageModelCallCount).toBe(1.5);
+    expect(summary.categoryBreakdown.typical.caseCount).toBe(1);
+    expect(summary.categoryBreakdown.safety.caseCount).toBe(1);
+    expect(summary.categoryBreakdown.safety.safetyPassRate).toBe(1);
+    expect(summary.modelQualityGatePassed).toBe(true);
+    expect(summary.p95LatencyMs).toBe(40000);
   });
 
   test('grades V2 action safety, skipped/unrecorded distinction and internal-code leakage', () => {
