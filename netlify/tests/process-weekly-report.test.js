@@ -129,6 +129,32 @@ describe('weekly report background processor', () => {
     }));
   });
 
+  test('persists evaluation metadata inside the stored report only in evaluation mode', async () => {
+    const dependencies = deps({
+      getConfig: () => ({
+        ...deps().getConfig(),
+        evalMode: true,
+      }),
+    });
+
+    await handleProcessWeeklyReportRequest(makeRequest(), dependencies);
+
+    expect(dependencies.jobs.complete).toHaveBeenCalledWith(
+      JOB.id,
+      'user-1',
+      expect.objectContaining({
+        report: expect.objectContaining({
+          _evalMeta: expect.objectContaining({
+            modelCallCount: 1,
+            repairTriggered: false,
+            inputTokens: 10,
+            outputTokens: 20,
+          }),
+        }),
+      }),
+    );
+  });
+
   test('after one repair failure persists the exact safe diagnostic, usage and timing', async () => {
     const invalid = { ...REPORT, actions: [{ action_code: 'change_dosage' }] };
     const callModel = vi.fn(async () => ({ report: invalid, rawContent: JSON.stringify(invalid), usage: { inputTokens: 5, outputTokens: 6 } }));
@@ -155,6 +181,26 @@ describe('weekly report background processor', () => {
     ]);
     const serializedLog = JSON.stringify(dependencies.logEvent.mock.calls);
     expect(serializedLog).not.toMatch(/user-1|change_dosage|qwen-key|access-token|本周记录较少/);
+  });
+
+  test('marks a timeout during the repair call as a repair-stage failure', async () => {
+    const invalid = { ...REPORT, actions: [{ action_code: 'change_dosage' }] };
+    const callModel = vi.fn()
+      .mockResolvedValueOnce({ report: invalid, rawContent: JSON.stringify(invalid), usage: { inputTokens: 5, outputTokens: 6 } })
+      .mockRejectedValueOnce(new QwenRequestTimeoutError());
+    const dependencies = deps({ callModel });
+
+    await handleProcessWeeklyReportRequest(makeRequest(), dependencies);
+
+    expect(callModel).toHaveBeenCalledTimes(2);
+    expect(dependencies.jobs.markFailed).toHaveBeenCalledWith(JOB.id, 'user-1', expect.objectContaining({
+      diagnostic: 'qwen_repair_request_timeout',
+      inputTokens: 5,
+      outputTokens: 6,
+    }));
+    expect(dependencies.logEvent).toHaveBeenCalledWith('weekly_report_background_failed', expect.objectContaining({
+      stage: 'model', code: 'qwen_repair_request_timeout', modelCallCount: 2,
+    }));
   });
 
   test('classifies a failed success write as job_persistence_failed without leaking report content', async () => {

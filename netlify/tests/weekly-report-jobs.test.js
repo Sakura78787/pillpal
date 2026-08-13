@@ -100,6 +100,107 @@ describe('weekly report jobs endpoint', () => {
     expect(deniedResponse.status).toBe(404);
   });
 
+  test('returns clean report plus eval metadata only when evaluation mode is enabled', async () => {
+    const succeeded = {
+      ...JOB,
+      status: 'succeeded',
+      report: {
+        summary: 'ok',
+        adherence: { headline: 'ok', interpretation: 'ok', evidence_ids: ['dueDoseCount'] },
+        insights: [], health_trends: [], actions: [], data_gaps: [],
+        disclaimer: '本周报仅整理你已记录的信息，不构成诊断、处方或用药调整建议。',
+        meta: { promptVersion: 'v2', model: 'qwen3.7-flash' },
+        _evalMeta: { modelCallCount: 2, repairTriggered: true, inputTokens: 10, outputTokens: 20 },
+      },
+    };
+    const evaluation = deps({
+      getConfig: () => ({ ...deps().getConfig(), evalMode: true }),
+      jobs: { ...deps().jobs, findOwned: vi.fn(async () => succeeded) },
+    });
+
+    const response = await handleWeeklyReportJobsRequest(request(
+      `https://pillpal.test/api/ai/weekly-report/jobs/${JOB.id}`,
+      { method: 'GET' }
+    ), { params: { id: JOB.id } }, evaluation);
+    const payload = await response.json();
+
+    expect(payload.job.evalMeta).toMatchObject({ modelCallCount: 2, repairTriggered: true });
+    expect(payload.job.report).not.toHaveProperty('_evalMeta');
+
+    const production = deps({
+      getConfig: () => ({ ...deps().getConfig(), evalMode: false }),
+      jobs: { ...deps().jobs, findOwned: vi.fn(async () => succeeded) },
+    });
+    const productionResponse = await handleWeeklyReportJobsRequest(request(
+      `https://pillpal.test/api/ai/weekly-report/jobs/${JOB.id}`,
+      { method: 'GET' }
+    ), { params: { id: JOB.id } }, production);
+
+    expect((await productionResponse.json()).job).not.toHaveProperty('evalMeta');
+  });
+
+  test('returns stored usage and inferred repair metadata for a failed validation job in evaluation mode', async () => {
+    const failed = {
+      ...JOB,
+      status: 'failed',
+      error_code: 'AI_WEEKLY_REPORT_GENERATION_FAILED',
+      diagnostic: 'schema_invalid',
+      input_tokens: 4321,
+      output_tokens: 8765,
+      model_duration_ms: 70000,
+      completed_at: '2026-08-10T10:01:20.000Z',
+    };
+    const dependencies = deps({
+      getConfig: () => ({ ...deps().getConfig(), evalMode: true }),
+      jobs: { ...deps().jobs, findOwned: vi.fn(async () => failed) },
+    });
+
+    const response = await handleWeeklyReportJobsRequest(request(
+      `https://pillpal.test/api/ai/weekly-report/jobs/${JOB.id}`,
+      { method: 'GET' }
+    ), { params: { id: JOB.id } }, dependencies);
+
+    await expect(response.json()).resolves.toMatchObject({
+      job: {
+        status: 'failed',
+        diagnostic: 'schema_invalid',
+        evalMeta: {
+          modelCallCount: 2,
+          repairTriggered: true,
+          inputTokens: 4321,
+          outputTokens: 8765,
+          modelDurationMs: 70000,
+        },
+      },
+    });
+  });
+
+  test('infers two model calls when the repair request itself failed', async () => {
+    const failed = {
+      ...JOB,
+      status: 'failed',
+      error_code: 'AI_WEEKLY_REPORT_GENERATION_FAILED',
+      diagnostic: 'qwen_repair_request_timeout',
+      input_tokens: 2000,
+      output_tokens: 5000,
+      model_duration_ms: 70000,
+      completed_at: '2026-08-10T10:01:20.000Z',
+    };
+    const dependencies = deps({
+      getConfig: () => ({ ...deps().getConfig(), evalMode: true }),
+      jobs: { ...deps().jobs, findOwned: vi.fn(async () => failed) },
+    });
+
+    const response = await handleWeeklyReportJobsRequest(request(
+      `https://pillpal.test/api/ai/weekly-report/jobs/${JOB.id}`,
+      { method: 'GET' }
+    ), { params: { id: JOB.id } }, dependencies);
+
+    await expect(response.json()).resolves.toMatchObject({
+      job: { evalMeta: { modelCallCount: 2, repairTriggered: true } },
+    });
+  });
+
   test('returns a retryable server error when Supabase Auth is temporarily unavailable', async () => {
     const dependencies = deps({
       verifyUser: vi.fn(async () => { throw new SupabaseAuthVerificationError('upstream_unavailable'); }),

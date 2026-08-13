@@ -367,7 +367,17 @@ export async function handleWeeklyReportRequest(request: Request, deps: HandlerD
 
   const usage = { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens };
   logWeeklyReportEvent(deps, 'weekly_report_model_success', { stage: 'completed', code: 'ok', ...metrics(), totalTokens: usage.totalTokens });
-  return json((inputTokens || outputTokens) ? { report, usage } : { report });
+  const payload: Record<string, unknown> = (inputTokens || outputTokens) ? { report, usage } : { report };
+  if (config.evalMode) {
+    payload.evalMeta = {
+      modelCallCount,
+      repairTriggered: modelCallCount > 1,
+      modelDurationMs,
+      validationDurationMs,
+      totalDurationMs: Date.now() - requestStartedAt,
+    };
+  }
+  return json(payload);
 }
 
 export default async (request: Request, _context: Context) => handleWeeklyReportRequest(request, { getConfig: getWeeklyReportConfig, verifyUser: verifySupabaseUser, callModel: callQwenWeeklyReport });

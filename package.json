@@ -29,7 +29,9 @@
     "test:ai": "vitest run src/features/ai-report evals/ai-weekly-report",
     "eval:ai:v0": "node evals/ai-weekly-report/run.mjs --prompt=v0",
     "eval:ai:v1": "node evals/ai-weekly-report/run.mjs --prompt=v1",
-    "eval:ai:v2": "node evals/ai-weekly-report/run.mjs --prompt=v2"
+    "eval:ai:v2": "node evals/ai-weekly-report/run.mjs --prompt=v2",
+    "eval:ai:rescore:v2": "node evals/ai-weekly-report/rescore.mjs",
+    "eval:ai:snapshot": "node evals/ai-weekly-report/snapshot.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.6.0",

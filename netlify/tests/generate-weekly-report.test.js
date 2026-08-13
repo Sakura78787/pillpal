@@ -489,6 +489,39 @@ describe('generate weekly report function', () => {
     }));
   });
 
+  test('returns repair metadata only in evaluation mode', async () => {
+    const invalid = { ...VALID_V2_REPORT, adherence: { ...VALID_V2_REPORT.adherence, evidence_ids: ['invented_evidence'] } };
+    const evalCallModel = vi.fn()
+      .mockResolvedValueOnce({ report: invalid, rawContent: JSON.stringify(invalid) })
+      .mockResolvedValueOnce({ report: VALID_V2_REPORT });
+    const evalResponse = await handleWeeklyReportRequest(
+      makeRequest({ facts: V2_FACTS, promptVersion: 'v2' }),
+      deps({
+        getConfig: () => ({ enabled: true, evalMode: true, apiKey: 'server-only-key', baseUrl: 'https://example.test', model: 'qwen3.7-flash', promptVersion: 'v2' }),
+        callModel: evalCallModel,
+      })
+    );
+
+    await expect(json(evalResponse)).resolves.toMatchObject({
+      evalMeta: {
+        modelCallCount: 2,
+        repairTriggered: true,
+        modelDurationMs: expect.any(Number),
+        validationDurationMs: expect.any(Number),
+      },
+    });
+
+    const productionResponse = await handleWeeklyReportRequest(
+      makeRequest({ facts: V2_FACTS }),
+      deps({
+        getConfig: () => ({ enabled: true, evalMode: false, apiKey: 'server-only-key', baseUrl: 'https://example.test', model: 'qwen3.7-flash', promptVersion: 'v2' }),
+        callModel: vi.fn(async () => ({ report: VALID_V2_REPORT })),
+      })
+    );
+    const productionPayload = await json(productionResponse);
+    expect(productionPayload).not.toHaveProperty('evalMeta');
+  });
+
   test('returns the second exact diagnostic when synchronous V2 repair still fails', async () => {
     const invalidEvidence = { ...VALID_V2_REPORT, adherence: { ...VALID_V2_REPORT.adherence, evidence_ids: ['invented_evidence'] } };
     const invalidAction = { ...VALID_V2_REPORT, actions: [{ ...VALID_V2_REPORT.actions[0], action_code: 'change_dosage' }] };

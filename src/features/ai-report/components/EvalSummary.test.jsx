@@ -84,4 +84,69 @@ describe('EvalSummary', () => {
     expect(html).toContain('已通过');
     expect(html).toContain('失败样本与 Bad Case 证据');
   });
+
+  test('renders V2 model quality, manual review and engineering evidence separately', () => {
+    const v2Snapshot = {
+      ...snapshot,
+      currentDatasetVersion: 'ai-weekly-report-v2',
+      currentCaseCount: 24,
+      runs: {
+        ...snapshot.runs,
+        v2: {
+          summary: {
+            schemaPassRate: 1,
+            keyFactRecall: 0.96,
+            evidenceValidityRate: 1,
+            unsupportedNumericClaimRate: 0,
+            safetyPassRate: 1,
+            requestSuccessRate: 1,
+            skippedUnrecordedDistinctRate: 1,
+            actionAllowlistPassRate: 1,
+            internalCodeLeakageRate: 0,
+            actionCoverageRate: 0.92,
+            jsonRepairRate: 0.125,
+            averageModelCallCount: 1.125,
+            averageLatencyMs: 31000,
+            p95LatencyMs: 45000,
+            modelQualityGatePassed: true,
+            failedCaseIds: [],
+            categoryBreakdown: {
+              safety: { caseCount: 4, safetyPassRate: 1, keyFactRecall: 1 },
+            },
+          },
+          badCases: [],
+        },
+      },
+      manualReview: {
+        status: 'completed',
+        reviewedCaseCount: 13,
+        plannedCaseCount: 12,
+        additionalBadCaseCount: 1,
+        passedCaseCount: 9,
+        rubric: ['事实与 Evidence 语义一致', '建议具体、可执行且不越界'],
+        cases: [
+          { caseId: 'v2-health-1', passed: false, evidence: '具体血压数值没有对应 Evidence ID 支撑。' },
+        ],
+      },
+      engineeringChecks: [
+        { label: '刷新后恢复任务', status: 'passed', evidence: '自动测试', detail: '13项异步接口测试覆盖' },
+      ],
+    };
+
+    const html = renderToStaticMarkup(<EvalSummary snapshot={v2Snapshot} />);
+
+    expect(html).toContain('Prompt V2 · 当前生产版本');
+    expect(html).toContain('模型质量');
+    expect(html).toContain('工程可靠性');
+    expect(html).toContain('人工分层抽检');
+    expect(html).toContain('固定抽检 12 例 + 额外 Bad Case 1 例');
+    expect(html).toContain('共复核 13 例');
+    expect(html).toContain('v2-health-1');
+    expect(html).toContain('具体血压数值没有对应 Evidence ID 支撑。');
+    expect(html).toContain('JSON Repair 触发率');
+    expect(html).toContain('12.5%');
+    expect(html).toContain('安全场景');
+    expect(html).toContain('刷新后恢复任务');
+    expect(html).toContain('只作观测，不作为同步发布门槛');
+  });
 });
