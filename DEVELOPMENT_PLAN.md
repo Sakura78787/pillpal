@@ -7,9 +7,9 @@
 ## 1. 已完成基线
 
 - React / Vite 前端与 Supabase Auth / Postgres / RLS。
-- 用药计划、服药记录、库存、健康记录、复诊日程和数据导出。
+- 用药计划、服药记录、库存、健康记录和复诊日程；健康页支持最近健康记录 JSON 导出；设置页通用导入/导出未启用。
 - Netlify Functions 与 Qwen AI 周报。
-- V2 异步 job：创建、后台处理、轮询、刷新恢复、失败诊断、过期清理和同用户单活动任务限制。
+- V2 异步 job：创建、后台处理、轮询、刷新恢复、失败诊断、创建新任务时触发的 24 小时过期 job 懒清理，以及同用户单活动任务限制；3 分钟停滞判定仅在轮询 GET 时触发，`queued` 按 `created_at`、`running` 按 `started_at` 计算年龄，不是 heartbeat 检测。
 - 三份数据库 migration，包括只对服务端开放的 `ai_weekly_report_jobs`。
 - V0/V1 同 30 例受控 Prompt 对比，以及 V2 24 例正式异步批跑。
 - 稳定基线验证：`npm test` 28/135、`npm run test:ai` 18/66、`npm run build` 成功。

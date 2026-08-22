@@ -20,7 +20,7 @@ Production: [https://pillpal-app.netlify.app](https://pillpal-app.netlify.app)
 
 - 邮箱 Magic Link 登录与受保护路由。
 - 用药计划、已服用/已跳过记录、库存扣减与低库存提示。
-- 血压、血糖、体重记录与 JSON 导出。
+- 健康页支持最近健康记录 JSON 导出；设置页通用导入/导出未启用。
 - 复诊日程和应用内提示。
 - Supabase Auth / Postgres / RLS：业务表仅允许登录用户访问自己的数据。
 - AI 家庭照护周报 V2：创建任务、后台生成、轮询状态、刷新后恢复、失败诊断和 24 小时任务过期。
@@ -34,7 +34,7 @@ Production: [https://pillpal-app.netlify.app](https://pillpal-app.netlify.app)
 
 ### 隐私边界
 
-用户首次生成前必须明确同意。获得同意后，最近 7 天已记录的血压、血糖和体重数值可能发送给 Qwen；同时会发送代码计算的用药执行汇总、匿名药物引用、库存估算、数据缺口和复诊倒计时。
+用户首次生成前必须明确同意。获得同意后，最近 7 天健康样本可能发送给 Qwen，具体字段为：记录时间 `recordedAt`；血压的收缩压、舒张压和可选心率；血糖数值和可选测量时段；体重数值和可选 BMI。同时会发送代码计算的用药执行汇总、匿名药物引用、库存估算、数据缺口和复诊倒计时。
 
 不会发送姓名等身份信息、邮箱、药品名称、剂量、医院、医生、备注或数据库 ID。药物只使用本次周报内生成的 `med_1` 一类匿名引用，不是数据库主键。AI 结果只用于记录整理，不能替代原始记录或医疗判断。
 
@@ -79,7 +79,7 @@ npm run dev
 |---|---:|---|
 | `AI_WEEKLY_REPORT_ENABLED` | AI 开启时 | 服务端总开关，严格小写 `true` |
 | `AI_WEEKLY_REPORT_EVAL_MODE` | 否 | 评测环境返回额外用量/时延元数据；生产保持 `false` |
-| `AI_WEEKLY_REPORT_PROMPT_VERSION` | 否 | `v2` 启用 V2；其他值回退 `v1` |
+| `AI_WEEKLY_REPORT_PROMPT_VERSION` | 否 | 仅供旧同步兼容接口选择 `v1`/`v2`；异步 job 固定使用 V2 |
 | `QWEN_BASE_URL` | 否 | 默认 DashScope OpenAI-compatible 地址 |
 | `QWEN_MODEL` | 否 | 默认 `qwen3.7-flash` |
 | `QWEN_MAX_OUTPUT_TOKENS` | 否 | 默认 `1400` |

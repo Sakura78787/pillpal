@@ -14,7 +14,7 @@ PillPal 已完成单账户慢病记录、Supabase RLS 和异步 AI 家庭照护�
 
 - 邮箱 Magic Link 登录、`ProtectedRoute` 与刷新后会话恢复。
 - 用药计划、已服用/已跳过记录、库存扣减和低库存提示。
-- 血压、血糖、体重记录与 JSON 导出。
+- 健康页支持最近健康记录 JSON 导出；设置页通用导入/导出未启用。
 - 复诊日程和应用内提示。
 - 核心表：`profiles`、`medications`、`medication_logs`、`health_records`、`appointments`。
 - 业务表通过 RLS 维持 `auth.uid() = user_id` 的单账户隔离。
@@ -24,9 +24,9 @@ PillPal 已完成单账户慢病记录、Supabase RLS 和异步 AI 家庭照护�
 - 前端从最近 7 天记录计算确定性事实，再创建 AI job。
 - `weekly-report-jobs` 负责鉴权、任务创建、轮询和过期检查。
 - Netlify Background Function 调用 `qwen3.7-flash`，先生成、再校验，内容校验失败最多 Repair 一次。
-- 任务状态为 `queued / running / succeeded / failed`；同一用户同时最多一个活动任务，24 小时过期。
+- 任务状态为 `queued / running / succeeded / failed`；同一用户同时最多一个活动任务，`expires_at` 为创建后 24 小时。过期行不是定时清理，而是在创建新任务的 POST 中先执行懒清理。
 - `ai_weekly_report_jobs` 不对浏览器角色开放，只由服务端 secret key 访问；服务端查询仍校验用户身份与 job 所有权。
-- 前端保存 job ID，刷新页面后可以继续查询；超过 3 分钟无进展的任务标记为失败。
+- 前端保存 job ID，刷新页面后可以继续查询。停滞检查只在轮询 GET 时触发：`queued` 按 `created_at`、`running` 按 `started_at` 计算年龄，超过 3 分钟则标记失败；当前没有 heartbeat。
 
 ### 数据库迁移
 
@@ -39,7 +39,7 @@ PillPal 已完成单账户慢病记录、Supabase RLS 和异步 AI 家庭照护�
 ## 2. AI 隐私与安全边界
 
 - 用户首次生成前需要明确同意；拒绝时不调用模型。
-- 同意后，最近 7 天已记录的血压、血糖和体重数值可能发送给 Qwen。
+- 同意后，最近 7 天健康样本可能发送给 Qwen：记录时间 `recordedAt`；血压的收缩压、舒张压和可选心率；血糖数值和可选测量时段；体重数值和可选 BMI。
 - 同时发送代码计算的服药执行汇总、匿名药物引用、库存估算、健康趋势、数据缺口和复诊倒计时。
 - 不发送身份信息、邮箱、药品名称、剂量、医院、医生、备注或数据库 ID。
 - `med_1` 一类引用只在本次周报上下文中使用，不是数据库主键；药品名称仅在浏览器本地映射回展示文案。
