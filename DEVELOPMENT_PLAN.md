@@ -42,9 +42,9 @@
 
 ### Phase D：自动化验收——已完成
 
-2026-08-22 在代码基线 `9e84648` 上验证：
+2026-08-22 在阶段二功能分支上验证：
 
-- `npm test`：33 个测试文件、155 个测试通过。
+- `npm test`：34 个测试文件、156 个测试通过。
 - `npm run test:ai`：18 个测试文件、67 个测试通过。
 - `npm run build`：成功。
 - 已知非阻塞信息：测试存在 React Router `useLayoutEffect` SSR 渲染 warning；构建存在动态/静态重复导入与 chunk-size warning。

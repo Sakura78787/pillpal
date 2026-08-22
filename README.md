@@ -142,7 +142,7 @@ docs/                        评测、项目管理与安全交接文档
 
 ## 验证基线
 
-阶段二代码基线 `9e846487c09eaefce7246c9c47701051ca0845bf` 已于 2026-08-22 本地验证：`npm test` 33 个测试文件 / 155 个测试通过，`npm run test:ai` 18 个测试文件 / 67 个测试通过，`npm run build` 成功。测试保留 React Router SSR 渲染 warning，构建保留动态/静态重复导入和 chunk-size warning；本轮未发布。
+阶段二功能分支已于 2026-08-22 本地验证：`npm test` 34 个测试文件 / 156 个测试通过，`npm run test:ai` 18 个测试文件 / 67 个测试通过，`npm run build` 成功。测试保留 React Router SSR 渲染 warning，构建保留动态/静态重复导入和 chunk-size warning；本轮未发布。
 
 ## License
 
