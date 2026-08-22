@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Loader2, Sparkles } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireSupabase } from '@/integrations/supabase/client';
@@ -23,8 +23,14 @@ const STATUS_TEXT = {
   running: 'AI 正在分析，通常需要 30～90 秒，可以暂时离开此页面。',
 };
 
+export const weeklyReportReturnTarget = (search = '') => (
+  new URLSearchParams(search).get('from') === 'care' ? '/care' : '/dashboard'
+);
+
 const WeeklyReport = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTarget = weeklyReportReturnTarget(location.search);
   const { user } = useAuthStore();
   const { setPageTitle } = useUIStore();
   const enabled = isWeeklyReportEnabled();
@@ -136,7 +142,7 @@ const WeeklyReport = () => {
 
   if (!enabled) {
     return <div className="min-h-screen bg-gray-50 p-4">
-      <Button variant="ghost" onClick={() => navigate('/dashboard')} className="mb-4">
+      <Button variant="ghost" onClick={() => navigate(returnTarget)} className="mb-4">
         <ArrowLeft className="w-4 h-4 mr-2" />返回
       </Button>
       <Card><CardContent className="p-6 text-sm text-gray-600">AI 用药管理周报暂未开启。</CardContent></Card>
@@ -152,8 +158,8 @@ const WeeklyReport = () => {
         : '生成周报';
 
   return <div className="min-h-screen bg-gray-50 p-4 pb-24">
-    <Button variant="ghost" onClick={() => navigate('/dashboard')} className="mb-4">
-      <ArrowLeft className="w-4 h-4 mr-2" />返回今日
+    <Button variant="ghost" onClick={() => navigate(returnTarget)} className="mb-4">
+      <ArrowLeft className="w-4 h-4 mr-2" />{returnTarget === '/care' ? '返回照护概览' : '返回今日'}
     </Button>
     <Card className="mb-4 border-emerald-100">
       <CardHeader>
