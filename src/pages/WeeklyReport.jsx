@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Loader2, Sparkles } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { requireSupabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
@@ -23,8 +23,59 @@ const STATUS_TEXT = {
   running: 'AI 正在分析，通常需要 30～90 秒，可以暂时离开此页面。',
 };
 
+export const weeklyReportReturnTarget = (search = '') => (
+  new URLSearchParams(search).get('from') === 'care' ? '/care' : '/dashboard'
+);
+
+export const weeklyReportView = (search = '') => {
+  const returnTarget = weeklyReportReturnTarget(search);
+  const fromCare = returnTarget === '/care';
+  return {
+    fromCare,
+    returnTarget,
+    returnLabel: fromCare ? '返回照护概览' : '返回今日',
+    title: fromCare ? 'AI 家庭照护周报' : 'AI 用药管理周报',
+    description: fromCare
+      ? '基于最近 7 天已记录数据，帮助异地子女了解计划执行线索、健康记录和下周照护行动。未记录不等于确认漏服。'
+      : '基于最近 7 天已记录数据，整理用药计划执行、健康记录与后续行动。未记录不等于确认漏服。',
+  };
+};
+
+export const WeeklyReportIntro = ({ view }) => (
+  <div className="space-y-3">
+    {view.fromCare && (
+      <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-900">
+        <p className="font-medium">Demo 使用边界</p>
+        <p>当前使用本人账号数据模拟异地子女只读照护视角，尚未建立真实家庭账号绑定。</p>
+      </div>
+    )}
+    <div>
+      <h1 className="flex items-center gap-2 text-xl font-semibold">
+        <Sparkles className="w-5 h-5 text-emerald-600" />{view.title}
+      </h1>
+      <p className="mt-3 text-sm leading-6 text-gray-600">{view.description}</p>
+    </div>
+  </div>
+);
+
+export const WeeklyReportUnavailable = ({ view, onBack }) => (
+  <div className="min-h-screen bg-gray-50 p-4">
+    <Button variant="ghost" onClick={onBack} className="mb-4">
+      <ArrowLeft className="w-4 h-4 mr-2" />{view.returnLabel}
+    </Button>
+    <Card>
+      <CardContent className="space-y-4 p-6">
+        <WeeklyReportIntro view={view} />
+        <p className="text-sm text-gray-600">{view.title}暂未开启。</p>
+      </CardContent>
+    </Card>
+  </div>
+);
+
 const WeeklyReport = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const view = weeklyReportView(location.search);
   const { user } = useAuthStore();
   const { setPageTitle } = useUIStore();
   const enabled = isWeeklyReportEnabled();
@@ -38,7 +89,7 @@ const WeeklyReport = () => {
   const [error, setError] = useState('');
   const pollingControllerRef = useRef(null);
 
-  useEffect(() => { setPageTitle('AI 用药管理周报'); }, [setPageTitle]);
+  useEffect(() => { setPageTitle(view.title); }, [setPageTitle, view.title]);
 
   useEffect(() => {
     if (!enabled || !user?.id) return;
@@ -135,12 +186,7 @@ const WeeklyReport = () => {
   };
 
   if (!enabled) {
-    return <div className="min-h-screen bg-gray-50 p-4">
-      <Button variant="ghost" onClick={() => navigate('/dashboard')} className="mb-4">
-        <ArrowLeft className="w-4 h-4 mr-2" />返回
-      </Button>
-      <Card><CardContent className="p-6 text-sm text-gray-600">AI 用药管理周报暂未开启。</CardContent></Card>
-    </div>;
+    return <WeeklyReportUnavailable view={view} onBack={() => navigate(view.returnTarget)} />;
   }
 
   const buttonText = isGenerating
@@ -152,19 +198,14 @@ const WeeklyReport = () => {
         : '生成周报';
 
   return <div className="min-h-screen bg-gray-50 p-4 pb-24">
-    <Button variant="ghost" onClick={() => navigate('/dashboard')} className="mb-4">
-      <ArrowLeft className="w-4 h-4 mr-2" />返回今日
+    <Button variant="ghost" onClick={() => navigate(view.returnTarget)} className="mb-4">
+      <ArrowLeft className="w-4 h-4 mr-2" />{view.returnLabel}
     </Button>
     <Card className="mb-4 border-emerald-100">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-xl">
-          <Sparkles className="w-5 h-5 text-emerald-600" />AI 家庭照护周报
-        </CardTitle>
+        <WeeklyReportIntro view={view} />
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-sm leading-6 text-gray-600">
-          基于最近 7 天已记录数据，帮助异地子女了解计划执行线索、健康记录和下周照护行动。未记录不等于确认漏服。
-        </p>
         {isLoadingFacts ? (
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <Loader2 className="w-4 h-4 animate-spin" />正在读取周报数据…

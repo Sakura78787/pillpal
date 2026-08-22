@@ -43,7 +43,7 @@ export const useUIStore = create((set, get) => ({
   pageTitle: '',
   
   // 网络状态
-  isOnline: navigator.onLine,
+  isOnline: typeof navigator === 'undefined' ? true : navigator.onLine,
   lastSyncTime: null,
 
   // 初始化UI设置

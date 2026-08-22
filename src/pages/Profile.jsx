@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   ChevronRight, 
   User, 
@@ -21,6 +21,81 @@ import { useAuthStore } from '@/store/authStore';
 import { useMedicationStore } from '@/store/medicationStore';
 import { useHealthStore } from '@/store/healthStore';
 import { useUIStore } from '@/store/uiStore';
+
+export const ProfileCareLink = ({ children } = {}) => (
+  <Link to="/care" className="block">{children}</Link>
+);
+
+export const ProfileMenu = ({ navigate }) => {
+  const menuItems = [
+    {
+      icon: Heart,
+      label: '家人照护',
+      color: 'text-emerald-600',
+      bgColor: 'bg-emerald-50',
+      description: '只读查看最近 7 天照护信息',
+      href: '/care'
+    },
+    {
+      icon: Activity,
+      label: '健康档案',
+      color: 'text-rose-500',
+      bgColor: 'bg-rose-50',
+      description: '记录血压、血糖、体重等健康数据',
+      onClick: () => navigate('/health')
+    },
+    {
+      icon: Bell,
+      label: '提醒设置',
+      color: 'text-amber-500',
+      bgColor: 'bg-amber-50',
+      onClick: () => navigate('/profile/reminders')
+    },
+    {
+      icon: Database,
+      label: '数据管理',
+      color: 'text-blue-500',
+      bgColor: 'bg-blue-50',
+      description: '导入导出、备份恢复',
+      onClick: () => navigate('/settings')
+    },
+    {
+      icon: Settings,
+      label: '通用设置',
+      color: 'text-gray-500',
+      bgColor: 'bg-gray-50',
+      onClick: () => toast.info('功能开发中，敬请期待')
+    }
+  ];
+
+  return (
+    <div className="px-4 py-6 space-y-3">
+      <h3 className="text-sm font-medium text-gray-500 px-1">功能</h3>
+      {menuItems.map((item) => {
+        const Icon = item.icon;
+        const card = (
+          <Card
+            key={item.label}
+            className="cursor-pointer hover:shadow-md transition-shadow"
+            onClick={item.onClick}
+          >
+            <CardContent className="p-4 flex items-center">
+              <div className={`w-10 h-10 ${item.bgColor} rounded-lg flex items-center justify-center mr-3`}>
+                <Icon className={`w-5 h-5 ${item.color}`} />
+              </div>
+              <div className="flex-1">
+                <div className="font-medium text-gray-900">{item.label}</div>
+                {item.description && <div className="text-xs text-gray-500 mt-0.5">{item.description}</div>}
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-400" />
+            </CardContent>
+          </Card>
+        );
+        return item.href ? <ProfileCareLink key={item.label}>{card}</ProfileCareLink> : card;
+      })}
+    </div>
+  );
+};
 
 /**
  * 个人中心页面
@@ -93,40 +168,6 @@ const Profile = () => {
     return avatars[index];
   };
 
-  // 功能菜单列表
-  const menuItems = [
-    {
-      icon: Activity,
-      label: '健康档案',
-      color: 'text-rose-500',
-      bgColor: 'bg-rose-50',
-      description: '记录血压、血糖、体重等健康数据',
-      onClick: () => navigate('/health')
-    },
-    {
-      icon: Bell,
-      label: '提醒设置',
-      color: 'text-amber-500',
-      bgColor: 'bg-amber-50',
-      onClick: () => navigate('/profile/reminders')
-    },
-    {
-      icon: Database,
-      label: '数据管理',
-      color: 'text-blue-500',
-      bgColor: 'bg-blue-50',
-      description: '导入导出、备份恢复',
-      onClick: () => navigate('/settings')
-    },
-    {
-      icon: Settings,
-      label: '通用设置',
-      color: 'text-gray-500',
-      bgColor: 'bg-gray-50',
-      onClick: () => toast.info('功能开发中，敬请期待')
-    }
-  ];
-
   // 处理退出登录
   const handleLogout = async () => {
     try {
@@ -194,33 +235,7 @@ const Profile = () => {
         </div>
       </div>
 
-      {/* 功能菜单 */}
-      <div className="px-4 py-6 space-y-3">
-        <h3 className="text-sm font-medium text-gray-500 px-1">功能</h3>
-        {menuItems.map((item, index) => {
-          const Icon = item.icon;
-          return (
-            <Card 
-              key={index} 
-              className="cursor-pointer hover:shadow-md transition-shadow"
-              onClick={item.onClick}
-            >
-              <CardContent className="p-4 flex items-center">
-                <div className={`w-10 h-10 ${item.bgColor} rounded-lg flex items-center justify-center mr-3`}>
-                  <Icon className={`w-5 h-5 ${item.color}`} />
-                </div>
-                <div className="flex-1">
-                  <div className="font-medium text-gray-900">{item.label}</div>
-                  {item.description && (
-                    <div className="text-xs text-gray-500 mt-0.5">{item.description}</div>
-                  )}
-                </div>
-                <ChevronRight className="w-5 h-5 text-gray-400" />
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+      <ProfileMenu navigate={navigate} />
 
       {/* 关于我们 */}
       <div className="px-4 py-2">
