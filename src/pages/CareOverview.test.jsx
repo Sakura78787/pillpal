@@ -1,7 +1,8 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { Link, MemoryRouter } from 'react-router-dom';
 import { describe, expect, test } from 'vitest';
-import { CareOverviewContent } from './CareOverview.jsx';
+import { CareOverviewContent, CareWeeklyReportLink, careOverviewIdentityError } from './CareOverview.jsx';
 
 const overview = {
   periodStart: '2026-07-29',
@@ -21,7 +22,9 @@ const overview = {
   ],
 };
 
-const renderContent = (props) => renderToStaticMarkup(<CareOverviewContent {...props} />);
+const renderContent = (props) => renderToStaticMarkup(
+  <MemoryRouter><CareOverviewContent {...props} /></MemoryRouter>
+);
 
 describe('CareOverviewContent', () => {
   test('shows the demo boundary, core metrics, ordered actions, and AI entry', () => {
@@ -73,5 +76,15 @@ describe('CareOverviewContent', () => {
     expect(html).toContain('计划剂次');
     expect(html).toContain('AI 家庭照护周报暂未开启');
     expect(html).not.toContain('/weekly-report?from=care');
+  });
+
+  test('uses a client router Link for the AI handoff', () => {
+    expect(CareWeeklyReportLink().type).toBe(Link);
+  });
+
+  test('ends loading with an explicit identity error when no user id is available', () => {
+    expect(careOverviewIdentityError(null)).toBe('无法确认当前账号，请重新登录后再试。');
+    expect(careOverviewIdentityError({ id: '' })).toBe('无法确认当前账号，请重新登录后再试。');
+    expect(careOverviewIdentityError({ id: 'user-1' })).toBe('');
   });
 });

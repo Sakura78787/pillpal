@@ -47,6 +47,30 @@ const ProtectedRoute = ({ children, showNav = true }) => {
   return <MainLayout showNav={showNav}>{children}</MainLayout>;
 };
 
+export const AppRoutes = () => (
+  <Routes>
+    <Route path="/" element={<Landing />} />
+    <Route path="/login" element={<Login />} />
+    <Route path="/auth/callback" element={<AuthCallback />} />
+    <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+    <Route path="/medications" element={<ProtectedRoute><Medications /></ProtectedRoute>} />
+    <Route path="/medications/add" element={<ProtectedRoute showNav={false}><AddMedication /></ProtectedRoute>} />
+    <Route path="/medications/edit/:id" element={<ProtectedRoute showNav={false}><EditMedication /></ProtectedRoute>} />
+    <Route path="/logs" element={<ProtectedRoute><Logs /></ProtectedRoute>} />
+    <Route path="/appointments" element={<ProtectedRoute><Appointments /></ProtectedRoute>} />
+    <Route path="/inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
+    <Route path="/health" element={<ProtectedRoute><Health /></ProtectedRoute>} />
+    <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+    <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+    <Route path="/about" element={<ProtectedRoute><About /></ProtectedRoute>} />
+    <Route path="/profile/reminders" element={<ProtectedRoute><ReminderSettings /></ProtectedRoute>} />
+    <Route path="/weekly-report" element={<ProtectedRoute><WeeklyReport /></ProtectedRoute>} />
+    <Route path="/care" element={<ProtectedRoute><CareOverview /></ProtectedRoute>} />
+    <Route path="/eval-lab" element={<ProtectedRoute><EvalLab /></ProtectedRoute>} />
+    <Route path="*" element={<Navigate to="/" replace />} />
+  </Routes>
+);
+
 function App() {
   const { initializeAuth, subscribeToAuthChanges, authStatus, error } = useAuthStore();
   const { initializeUI } = useUIStore();
@@ -79,27 +103,7 @@ function App() {
           {error}
         </div>
       )}
-      <Routes>
-        <Route path="/" element={<Landing />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-        <Route path="/medications" element={<ProtectedRoute><Medications /></ProtectedRoute>} />
-        <Route path="/medications/add" element={<ProtectedRoute showNav={false}><AddMedication /></ProtectedRoute>} />
-        <Route path="/medications/edit/:id" element={<ProtectedRoute showNav={false}><EditMedication /></ProtectedRoute>} />
-        <Route path="/logs" element={<ProtectedRoute><Logs /></ProtectedRoute>} />
-        <Route path="/appointments" element={<ProtectedRoute><Appointments /></ProtectedRoute>} />
-        <Route path="/inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
-        <Route path="/health" element={<ProtectedRoute><Health /></ProtectedRoute>} />
-        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-        <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-        <Route path="/about" element={<ProtectedRoute><About /></ProtectedRoute>} />
-        <Route path="/profile/reminders" element={<ProtectedRoute><ReminderSettings /></ProtectedRoute>} />
-        <Route path="/weekly-report" element={<ProtectedRoute><WeeklyReport /></ProtectedRoute>} />
-        <Route path="/care" element={<ProtectedRoute><CareOverview /></ProtectedRoute>} />
-        <Route path="/eval-lab" element={<ProtectedRoute><EvalLab /></ProtectedRoute>} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <AppRoutes />
     </BrowserRouter>
   );
 }

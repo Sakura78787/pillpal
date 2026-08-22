@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AlertCircle, ArrowLeft, CalendarDays, HeartPulse, Loader2, PackageSearch, Sparkles } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
+import { Link, useNavigate } from 'react-router-dom';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { isWeeklyReportEnabled } from '@/features/ai-report/config.js';
 import { loadWeeklySourceData } from '@/features/ai-report/loadWeeklySourceData.js';
@@ -9,6 +9,7 @@ import { buildCareOverview } from '@/features/care-overview/buildCareOverview.js
 import { requireSupabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
+import { cn } from '@/lib/utils';
 
 const levelStyle = {
   action: 'border-rose-200 bg-rose-50',
@@ -21,6 +22,19 @@ const DemoBoundary = () => (
     <p className="font-medium">Demo 使用边界</p>
     <p>当前使用本人账号数据模拟异地子女只读照护视角，尚未建立真实家庭账号绑定。</p>
   </div>
+);
+
+export const CareWeeklyReportLink = () => (
+  <Link
+    to="/weekly-report?from=care"
+    className={cn(buttonVariants(), 'w-full bg-emerald-600 hover:bg-emerald-700')}
+  >
+    生成 AI 家庭照护周报
+  </Link>
+);
+
+export const careOverviewIdentityError = (user) => (
+  user?.id ? '' : '无法确认当前账号，请重新登录后再试。'
 );
 
 export function CareOverviewContent({ overview = null, loading = false, error = '', aiEnabled = false }) {
@@ -117,9 +131,7 @@ export function CareOverviewContent({ overview = null, loading = false, error = 
           <div className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-emerald-600" /><p className="font-medium">AI 家庭照护周报</p></div>
           <p className="text-sm leading-6 text-gray-600">在现有安全校验与健康数据确认流程下，把这些记录整理成家庭照护摘要。</p>
           {aiEnabled ? (
-            <Button asChild className="w-full bg-emerald-600 hover:bg-emerald-700">
-              <a href="/weekly-report?from=care">生成 AI 家庭照护周报</a>
-            </Button>
+            <CareWeeklyReportLink />
           ) : (
             <Button className="w-full" disabled>AI 家庭照护周报暂未开启</Button>
           )}
@@ -139,7 +151,13 @@ const CareOverview = () => {
 
   useEffect(() => { setPageTitle('家人照护'); }, [setPageTitle]);
   useEffect(() => {
-    if (!user?.id) return;
+    const identityError = careOverviewIdentityError(user);
+    if (identityError) {
+      setOverview(null);
+      setError(identityError);
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     (async () => {
       setLoading(true);

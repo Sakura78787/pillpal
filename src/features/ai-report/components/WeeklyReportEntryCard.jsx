@@ -1,10 +1,11 @@
 import React from 'react';
 import { Sparkles, ChevronRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 
 const WeeklyReportEntryCard = () => {
   return (
-    <a href="/care" className="block">
+    <Link to="/care" className="block">
       <Card className="bg-white border border-emerald-100 hover:shadow-md transition-shadow">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
@@ -21,7 +22,7 @@ const WeeklyReportEntryCard = () => {
           </div>
         </CardContent>
       </Card>
-    </a>
+    </Link>
   );
 };
 

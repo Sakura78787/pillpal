@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   ChevronRight, 
   User, 
@@ -21,6 +21,10 @@ import { useAuthStore } from '@/store/authStore';
 import { useMedicationStore } from '@/store/medicationStore';
 import { useHealthStore } from '@/store/healthStore';
 import { useUIStore } from '@/store/uiStore';
+
+export const ProfileCareLink = ({ children } = {}) => (
+  <Link to="/care" className="block">{children}</Link>
+);
 
 export const ProfileMenu = ({ navigate }) => {
   const menuItems = [
@@ -87,7 +91,7 @@ export const ProfileMenu = ({ navigate }) => {
             </CardContent>
           </Card>
         );
-        return item.href ? <a key={item.label} href={item.href} className="block">{card}</a> : card;
+        return item.href ? <ProfileCareLink key={item.label}>{card}</ProfileCareLink> : card;
       })}
     </div>
   );
