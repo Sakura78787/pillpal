@@ -19,14 +19,13 @@ describe('weekly report return navigation', () => {
     expect(weeklyReportReturnTarget('?from=other')).toBe('/dashboard');
   });
 
-  test('uses family-care semantics and the demo boundary only for care source', () => {
+  test('uses family-care semantics and the real read-only boundary only for care source', () => {
     const view = weeklyReportView('?from=care');
     const html = renderToStaticMarkup(<MemoryRouter><WeeklyReportIntro view={view} /></MemoryRouter>);
 
     expect(view.title).toBe('AI 家庭照护周报');
     expect(html).toContain('AI 家庭照护周报');
-    expect(html).toContain('当前使用本人账号数据模拟异地子女只读照护视角');
-    expect(html).toContain('尚未建立真实家庭账号绑定');
+    expect(html).toContain('已授权只读照护');
   });
 
   test('keeps ordinary weekly-report semantics without a family-binding claim', () => {
@@ -47,7 +46,7 @@ describe('weekly report return navigation', () => {
     );
 
     expect(careHtml).toContain('AI 家庭照护周报暂未开启');
-    expect(careHtml).toContain('尚未建立真实家庭账号绑定');
+    expect(careHtml).toContain('已授权只读照护');
     expect(ordinaryHtml).toContain('AI 用药管理周报暂未开启');
     expect(ordinaryHtml).not.toMatch(/家庭照护|异地子女|家庭账号绑定/);
   });

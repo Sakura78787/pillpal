@@ -11,6 +11,7 @@ const FACTS = buildWeeklyFacts(
 const JOB = {
   id: '11111111-1111-4111-8111-111111111111',
   user_id: 'user-1',
+  subject_user_id: 'user-1',
   status: 'queued',
   prompt_version: 'v2',
   model: 'qwen3.7-flash',
@@ -78,6 +79,18 @@ describe('weekly report jobs endpoint', () => {
 
     expect(response.status).toBe(202);
     expect(dependencies.triggerBackground).not.toHaveBeenCalled();
+    expect(dependencies.jobs.create).not.toHaveBeenCalled();
+  });
+
+  test('rejects a forged care recipient before creating a cross-account report', async () => {
+    const dependencies = deps({ hasAccess: vi.fn(async () => false) });
+    const response = await handleWeeklyReportJobsRequest(request(
+      'https://pillpal.test/api/ai/weekly-report/jobs',
+      { method: 'POST', body: JSON.stringify({ facts: FACTS, subjectUserId: '22222222-2222-4222-8222-222222222222' }) }
+    ), { params: {} }, dependencies);
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ code: 'AI_WEEKLY_REPORT_ACCESS_DENIED' });
     expect(dependencies.jobs.create).not.toHaveBeenCalled();
   });
 

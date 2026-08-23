@@ -1,7 +1,7 @@
 # PillPal 开源与依赖审计
 
-- 更新日期：2026-08-22
-- 代码基线：`9e846487c09eaefce7246c9c47701051ca0845bf`
+- 更新日期：2026-08-23
+- 代码基线：`codex/care-auth-notifications`（远程 migration 未应用）
 
 ## 公开范围
 
@@ -32,11 +32,12 @@
 
 如果用户拒绝健康数据授权，本次不调用模型。演示与评测继续使用合成数据；真实用户开放前需要补齐隐私告知、授权撤销、数据删除、备份、监控和事件响应。
 
-## 照护 Demo 权限边界
+## 家庭授权与通知权限边界
 
-- `/care` 仍在现有 `ProtectedRoute` 和单账号 `auth.uid() = user_id` 边界内，只读取当前登录账号自己的数据。
-- `from=care` 只改变周报标题、说明和返回路径，不扩大模型 payload、数据库权限或 AI 安全边界。
-- 当前未实现真实家庭邀请、双账号授权、共享 RLS、撤销或审计；阶段二当前分支尚未发布。
+- 业务原始表仍维持单账号 RLS；照护人不获得对 `medications`、`medication_logs`、`health_records` 或 `appointments` 的直接查询或写入权限。
+- `care_authorizations` 和 `notifications` 使用 RLS 与最小 Grants；跨账号摘要、AI 上下文、授权创建/领取/撤销、通知写入、限频和已读均在服务端验证身份与有效授权后处理。
+- `/weekly-report?from=care&subject=...` 仅在有效授权时可创建或读取；撤销后重新校验失败。照护人不能向模型任意提交被照护人的数据。
+- 通知仅站内持久化与 Realtime 刷新；无 Push、短信、微信、自由文本或定时任务。远程 migration 尚未应用，当前分支尚未发布。
 
 ## 异步 job 安全边界
 
@@ -81,7 +82,7 @@ npm audit --omit=dev
 
 1. `git status --short` 不出现 `.env`、token、构建产物或真实数据。
 2. 搜索密钥名称和常见 token 前缀，确认只有变量名与占位符。
-3. 检查 migration 顺序为三份，AI job 表未开放给浏览器角色。
+3. 检查 migration 顺序为四份，AI job、授权和通知表未向浏览器开放写入权限。
 4. 检查隐私文案与实际 payload 一致，不能继续声称“只发送聚合事实”。
 5. 检查 V2 报告仍保留质量 Gate 未通过与两个 Bad Case。
 6. 运行测试、AI 测试、构建与生产依赖 audit。

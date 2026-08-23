@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { isWeeklyReportEnabled } from '@/features/ai-report/config.js';
 import { loadWeeklySourceData } from '@/features/ai-report/loadWeeklySourceData.js';
+import { getCareOverview } from '@/api/care';
 import { buildWeeklyReportContext } from '@/features/ai-report/buildWeeklyFacts.js';
 import { getWeeklyReportJob, startWeeklyReportJob, waitForWeeklyReportJob } from '@/features/ai-report/api.js';
 import { ensureHealthDataConsent } from '@/features/ai-report/healthConsent.js';
@@ -23,13 +24,16 @@ const STATUS_TEXT = {
   running: 'AI 正在分析，通常需要 30～90 秒，可以暂时离开此页面。',
 };
 
-export const weeklyReportReturnTarget = (search = '') => (
-  new URLSearchParams(search).get('from') === 'care' ? '/care' : '/dashboard'
-);
+export const weeklyReportReturnTarget = (search = '') => {
+  const params = new URLSearchParams(search);
+  if (params.get('from') !== 'care') return '/dashboard';
+  const subject = params.get('subject');
+  return subject ? `/care?subject=${encodeURIComponent(subject)}` : '/care';
+};
 
 export const weeklyReportView = (search = '') => {
   const returnTarget = weeklyReportReturnTarget(search);
-  const fromCare = returnTarget === '/care';
+  const fromCare = new URLSearchParams(search).get('from') === 'care';
   return {
     fromCare,
     returnTarget,
@@ -43,12 +47,7 @@ export const weeklyReportView = (search = '') => {
 
 export const WeeklyReportIntro = ({ view }) => (
   <div className="space-y-3">
-    {view.fromCare && (
-      <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-900">
-        <p className="font-medium">Demo 使用边界</p>
-        <p>当前使用本人账号数据模拟异地子女只读照护视角，尚未建立真实家庭账号绑定。</p>
-      </div>
-    )}
+    {view.fromCare && <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-900"><p className="font-medium">已授权只读照护</p><p>本周报基于家人授权的照护数据生成，不提供编辑或代打卡能力。</p></div>}
     <div>
       <h1 className="flex items-center gap-2 text-xl font-semibold">
         <Sparkles className="w-5 h-5 text-emerald-600" />{view.title}
@@ -76,6 +75,7 @@ const WeeklyReport = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const view = weeklyReportView(location.search);
+  const subjectUserId = new URLSearchParams(location.search).get('subject') || '';
   const { user } = useAuthStore();
   const { setPageTitle } = useUIStore();
   const enabled = isWeeklyReportEnabled();
@@ -98,11 +98,17 @@ const WeeklyReport = () => {
       setIsLoadingFacts(true);
       setError('');
       try {
-        const sourceData = await loadWeeklySourceData({ client: requireSupabase(), userId: user.id, now: new Date() });
-        const context = buildWeeklyReportContext(sourceData, new Date());
+        const context = subjectUserId
+          ? await getCareOverview(subjectUserId)
+          : (() => {
+              const now = new Date();
+              return loadWeeklySourceData({ client: requireSupabase(), userId: user.id, now })
+                .then((sourceData) => buildWeeklyReportContext(sourceData, now));
+            })();
+        const loaded = await context;
         if (!cancelled) {
-          setFacts(context.facts);
-          setMedicationNamesByRef(context.medicationNamesByRef);
+          setFacts(loaded.facts);
+          setMedicationNamesByRef(loaded.medicationNamesByRef);
         }
       } catch {
         if (!cancelled) setError('读取周报数据失败，请稍后重试');
@@ -111,7 +117,7 @@ const WeeklyReport = () => {
       }
     })();
     return () => { cancelled = true; };
-  }, [enabled, user?.id]);
+  }, [enabled, subjectUserId, user?.id]);
 
   const monitorJob = useCallback(async (jobId, pollIntervalMs = 2000) => {
     pollingControllerRef.current?.abort();
@@ -135,17 +141,17 @@ const WeeklyReport = () => {
     } else if (!result.cancelled) {
       setError(result.error);
       if (!result.pending) {
-        clearWeeklyReportJob(user?.id);
+        clearWeeklyReportJob(`${user?.id}:${subjectUserId || user?.id}`);
         setActiveJobId('');
         setJobStatus('failed');
       }
     }
     setIsGenerating(false);
-  }, [user?.id]);
+  }, [subjectUserId, user?.id]);
 
   useEffect(() => {
     if (!facts || !user?.id || activeJobId || report) return;
-    const storedJobId = getWeeklyReportJobId(user.id);
+    const storedJobId = getWeeklyReportJobId(`${user.id}:${subjectUserId || user.id}`);
     if (!storedJobId) return;
     setActiveJobId(storedJobId);
     monitorJob(storedJobId);
@@ -172,7 +178,7 @@ const WeeklyReport = () => {
     setJobStatus('queued');
     setError('');
     setReport(null);
-    const result = await startWeeklyReportJob({ supabase: requireSupabase(), facts });
+    const result = await startWeeklyReportJob({ supabase: requireSupabase(), facts, subjectUserId: subjectUserId || undefined });
     if (!result.success) {
       setError(result.error);
       setIsGenerating(false);
@@ -181,7 +187,7 @@ const WeeklyReport = () => {
     }
 
     setActiveJobId(result.job.id);
-    saveWeeklyReportJobId(user.id, result.job.id);
+    saveWeeklyReportJobId(`${user.id}:${subjectUserId || user.id}`, result.job.id);
     await monitorJob(result.job.id, result.pollAfterMs);
   };
 

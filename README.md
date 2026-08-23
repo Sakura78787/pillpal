@@ -1,6 +1,6 @@
 # PillPal 慢病用药小管家
 
-PillPal 是一个面向慢病家庭照护场景的 Web MVP。已实现的产品链路覆盖邮箱 Magic Link 登录、用药计划、服药打卡、库存、血压/血糖/体重记录、复诊日程、同账号只读照护视角，以及基于最近 7 天记录生成的异步 AI 家庭照护周报。
+PillPal 是一个面向慢病家庭照护场景的 Web MVP。当前分支实现了邮箱 Magic Link 登录、用药计划、服药打卡、库存、健康记录、复诊日程、真实双账号只读照护、站内通知，以及最近 7 天异步 AI 家庭照护周报。
 
 本项目是个人健康记录与 AI 产品评测作品集，不提供诊断、处方、续方、在线问诊或用药调整建议。
 
@@ -9,12 +9,12 @@ PillPal 是一个面向慢病家庭照护场景的 Web MVP。已实现的产品�
 | 层级 | 状态 | 边界 |
 |---|---|---|
 | 已实现 | 单账户数据管理、RLS 隔离、AI 周报 V2 异步任务、V0/V1/V2 评测资产 | 代码和测试可验证 |
-| 已实现 | `/care` 同账号只读“子女照护视角” Demo、待确认 actions、AI `from=care` 衔接 | 模拟视角，不是家庭成员绑定或跨账户共享；本轮尚未发布 |
-| 未来候选 | 真实家庭邀请、双账户绑定与授权撤销 | 需要单独的数据模型、RLS、隐私与滥用风险评审 |
+| 本地已实现，待数据库迁移与双账号验收 | 数据所有者输入邮箱、对方登录自动生效、随时撤销、多位照护人、只读 `/care`、跨账号 AI 周报 | migration 尚未应用到远程 Supabase，不能据此推断 Preview 或 Production 可用 |
+| 本地已实现，待数据库迁移与双账号验收 | 站内通知、未读铃铛、通知中心、固定服药提醒、系统库存/复诊/待确认通知 | 不做 Web Push、短信、微信、自由文本或定时任务 |
 
 现有 Production 基线：[https://pillpal-app.netlify.app](https://pillpal-app.netlify.app)
 
-> `/care` 阶段二能力已在当前分支实现并完成本地验证，本轮没有执行发布或部署，不能据此推断现网已包含该能力。
+> 真实授权和站内通知仅完成本地代码、迁移和自动化验证；尚未应用远程 migration、创建 Preview 或发布，不能据此推断现网已包含该能力。
 
 > 演示环境建议仅使用合成数据，不要录入真实身份、处方或健康信息。
 
@@ -24,10 +24,12 @@ PillPal 是一个面向慢病家庭照护场景的 Web MVP。已实现的产品�
 - 用药计划、已服用/已跳过记录、库存扣减与低库存提示。
 - 健康页支持最近健康记录 JSON 导出；设置页通用导入/导出未启用。
 - 复诊日程和应用内提示。
-- 受登录保护的 `/care`：使用当前账号自己的数据模拟异地子女只读视角，不提供编辑、代打卡或跨账户读取。
+- 授权管理：数据所有者填写并二次核对照护人邮箱；照护人以该邮箱 Magic Link 登录后自动生效，数据所有者可随时撤销。不会暴露该邮箱是否已注册。
+- 只读照护：照护人仅经服务端校验有效授权后获得被照护人的照护摘要或 AI 上下文；原始业务表不向照护人开放，不提供编辑、代打卡或远程修改。
 - 最近 7 天四类照护概览：计划剂次及已服用/明确跳过/未记录、低库存药品、健康记录数量、复诊倒计时。
 - 基于确定性事实生成有序待确认 actions：低库存、3 天内复诊、明确跳过、未记录、无健康记录；没有优先事项时给出信息型兜底。
-- AI 开启时从 `/care` 进入 `/weekly-report?from=care`，沿用原 V2 异步任务、健康数据同意与安全校验，并保留“返回照护概览”的来源语义。
+- AI 开启时从 `/care` 进入 `/weekly-report?from=care&subject=<uuid>`；跨账号时服务端重新校验授权并加载被照护人的事实，撤销后不允许新建或继续读取该照护周报。
+- 站内通知：被照护人首页铃铛与通知中心展示库存预警、三天内复诊、记录待确认及照护人固定“提醒按时服药”；在线时 Realtime 刷新，离线时下次登录可见。
 - Supabase Auth / Postgres / RLS：业务表仅允许登录用户访问自己的数据。
 - AI 家庭照护周报 V2：创建任务、后台生成、轮询状态、刷新后恢复、失败诊断和 24 小时任务过期。
 - AI 评测：自动评分、固定人工抽检、Bad Case 留档和 `/eval-lab` 只读展示。
@@ -94,7 +96,7 @@ npm run dev
 | `DASHSCOPE_API_KEY` | AI 开启时 | 服务端模型密钥 |
 | `SUPABASE_URL` | 否 | 服务端 Supabase URL；未设置时回退 `VITE_SUPABASE_URL` |
 | `SUPABASE_PUBLISHABLE_KEY` | 否 | 服务端验签公开 key；未设置时回退前端同名配置 |
-| `SUPABASE_SECRET_KEY` | 异步 AI 开启时 | 仅服务端用于 AI job 表；不得使用 `VITE_` 前缀 |
+| `SUPABASE_SECRET_KEY` | AI、授权或通知开启时 | 仅服务端用于 AI job、授权、跨账号摘要与通知；不得使用 `VITE_` 前缀 |
 
 ### 正式评测 Runner
 
@@ -107,15 +109,16 @@ npm run dev
 
 ## Supabase 初始化
 
-在新 Supabase 项目中按顺序执行三份 migration：
+在新 Supabase 项目中按顺序执行四份 migration：
 
 ```text
 supabase/migrations/20260728000000_initial_schema.sql
 supabase/migrations/20260728001000_tighten_public_table_grants.sql
 supabase/migrations/20260810000000_ai_weekly_report_jobs.sql
+supabase/migrations/20260823000000_care_authorizations_and_notifications.sql
 ```
 
-前两份创建并收紧 `profiles`、`medications`、`medication_logs`、`health_records`、`appointments` 的 RLS；第三份创建仅由服务端 `service_role` 访问的 `ai_weekly_report_jobs`。
+前两份创建并收紧业务表 RLS；第三份创建仅服务端访问的 AI job；第四份创建授权与通知表、最小 Grants/RLS、Realtime 发布配置，并为 AI job 增加 `subject_user_id`。第四份尚未应用到远程数据库。
 
 ## 常用命令
 
@@ -142,7 +145,7 @@ docs/                        评测、项目管理与安全交接文档
 
 ## 验证基线
 
-阶段二功能分支已于 2026-08-22 本地验证：`npm test` 34 个测试文件 / 156 个测试通过，`npm run test:ai` 18 个测试文件 / 67 个测试通过，`npm run build` 成功。测试保留 React Router SSR 渲染 warning，构建保留动态/静态重复导入和 chunk-size warning；本轮未发布。
+真实家庭授权与通知功能分支已于 2026-08-23 本地验证：`npm test` 38 个测试文件 / 164 个测试通过，`npm run test:ai` 18 个测试文件 / 67 个测试通过，`npm run build` 成功。测试保留 React Router SSR 渲染 warning，构建保留动态/静态重复导入和 chunk-size warning；本轮未发布。
 
 ## License
 

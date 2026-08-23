@@ -160,7 +160,7 @@ const readAsyncServerError = async (response) => {
   return 'AI 周报暂时不可用，请稍后重试';
 };
 
-export async function startWeeklyReportJob({ supabase, facts, fetchImpl = fetch }) {
+export async function startWeeklyReportJob({ supabase, facts, subjectUserId, fetchImpl = fetch }) {
   const factsResult = weeklyFactsSchema.safeParse(facts);
   if (!factsResult.success || !('dueDoseCount' in factsResult.data)) {
     return { success: false, job: null, error: '周报数据不完整，请刷新后重试' };
@@ -169,7 +169,7 @@ export async function startWeeklyReportJob({ supabase, facts, fetchImpl = fetch 
     const response = await authenticatedFetch({
       supabase,
       url: '/api/ai/weekly-report/jobs',
-      init: { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ facts: factsResult.data }) },
+      init: { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ facts: factsResult.data, ...(subjectUserId ? { subjectUserId } : {}) }) },
       fetchImpl,
       refreshFirst: true,
     });

@@ -37,6 +37,22 @@ export const ProfileMenu = ({ navigate }) => {
       href: '/care'
     },
     {
+      icon: Shield,
+      label: '授权管理',
+      color: 'text-sky-600',
+      bgColor: 'bg-sky-50',
+      description: '授权家人只读查看照护摘要',
+      href: '/care/permissions'
+    },
+    {
+      icon: Bell,
+      label: '站内通知',
+      color: 'text-amber-500',
+      bgColor: 'bg-amber-50',
+      description: '查看库存、复诊和家人提醒',
+      href: '/notifications'
+    },
+    {
       icon: Activity,
       label: '健康档案',
       color: 'text-rose-500',

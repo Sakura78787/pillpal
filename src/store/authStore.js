@@ -9,6 +9,7 @@ import {
 } from '@/api/auth';
 import { AuthStatus } from '@/types/auth';
 import { clearAllWeeklyReportJobs } from '@/features/ai-report/jobStorage';
+import { claimCareAuthorizations } from '@/api/care';
 
 export const useAuthStore = create((set) => ({
   authStatus: AuthStatus.AUTHENTICATING,
@@ -49,6 +50,7 @@ export const useAuthStore = create((set) => ({
       }
 
       const { profile, error: profileError } = await getProfile(user.id);
+      claimCareAuthorizations().catch(() => {});
       set({
         authStatus: AuthStatus.AUTHENTICATED,
         user,
@@ -124,6 +126,7 @@ export const useAuthStore = create((set) => ({
       return onAuthStateChange(async (event, session) => {
         if (event === 'SIGNED_IN' && session?.user) {
           const { profile } = await getProfile(session.user.id);
+          claimCareAuthorizations().catch(() => {});
           set({
             authStatus: AuthStatus.AUTHENTICATED,
             user: session.user,
