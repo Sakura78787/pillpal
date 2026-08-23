@@ -21,6 +21,8 @@ import About from '@/pages/About';
 import ReminderSettings from '@/pages/ReminderSettings';
 import WeeklyReport from '@/pages/WeeklyReport';
 import CareOverview from '@/pages/CareOverview';
+import CarePermissions from '@/pages/CarePermissions';
+import Notifications from '@/pages/Notifications';
 import EvalLab from '@/pages/EvalLab';
 
 const LoadingScreen = () => (
@@ -66,6 +68,8 @@ export const AppRoutes = () => (
     <Route path="/profile/reminders" element={<ProtectedRoute><ReminderSettings /></ProtectedRoute>} />
     <Route path="/weekly-report" element={<ProtectedRoute><WeeklyReport /></ProtectedRoute>} />
     <Route path="/care" element={<ProtectedRoute><CareOverview /></ProtectedRoute>} />
+    <Route path="/care/permissions" element={<ProtectedRoute><CarePermissions /></ProtectedRoute>} />
+    <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
     <Route path="/eval-lab" element={<ProtectedRoute><EvalLab /></ProtectedRoute>} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>

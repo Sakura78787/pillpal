@@ -2,7 +2,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Link, MemoryRouter } from 'react-router-dom';
 import { describe, expect, test } from 'vitest';
-import { CareOverviewContent, CareWeeklyReportLink, careOverviewIdentityError } from './CareOverview.jsx';
+import { CareOverviewContent, CareWeeklyReportLink } from './CareOverview.jsx';
 
 const overview = {
   periodStart: '2026-07-29',
@@ -27,22 +27,22 @@ const renderContent = (props) => renderToStaticMarkup(
 );
 
 describe('CareOverviewContent', () => {
-  test('shows the demo boundary, core metrics, ordered actions, and AI entry', () => {
+  test('shows the real read-only boundary, core metrics, ordered actions, and AI entry', () => {
     const html = renderContent({ overview, aiEnabled: true });
 
-    expect(html).toContain('当前使用本人账号数据模拟异地子女只读照护视角');
-    expect(html).toContain('尚未建立真实家庭账号绑定');
+    expect(html).toContain('只读照护');
     expect(html).toContain('计划剂次');
     expect(html).toContain('已记录服用');
     expect(html).toContain('明确跳过');
-    expect(html).toContain('未记录');
+    expect(html).toContain('待确认');
     expect(html).toContain('低库存药品');
     expect(html).toContain('健康记录');
     expect(html).toContain('复诊倒计时');
     expect(html.indexOf('1 种药品库存偏低')).toBeLessThan(html.indexOf('2 次记录待确认'));
-    expect(html).toContain('/weekly-report?from=care');
+    expect(html).toContain('/weekly-report?from=care&amp;subject=');
     expect(html).toContain('生成 AI 家庭照护周报');
-    expect(html).not.toMatch(/打卡|编辑药物|修改健康数据|提醒 TA|真实家庭账号已绑定/);
+    expect(html).toContain('提醒按时服药');
+    expect(html).not.toContain('提醒 TA');
   });
 
   test('renders loading and query failure states', () => {
@@ -51,8 +51,8 @@ describe('CareOverviewContent', () => {
 
     expect(loadingHtml).toContain('正在整理最近 7 天照护信息');
     expect(errorHtml).toContain('读取照护数据失败');
-    expect(loadingHtml).toContain('尚未建立真实家庭账号绑定');
-    expect(errorHtml).toContain('尚未建立真实家庭账号绑定');
+    expect(loadingHtml).not.toContain('家庭账号绑定');
+    expect(errorHtml).not.toContain('家庭账号绑定');
   });
 
   test('renders no-plan and no-health states without medical inference', () => {
@@ -65,7 +65,7 @@ describe('CareOverviewContent', () => {
       aiEnabled: true,
     });
 
-    expect(html).toContain('近 7 天没有可汇总的用药计划剂次');
+    expect(html).toContain('近 7 天没有可汇总的计划剂次');
     expect(html).toContain('近 7 天暂无健康记录');
     expect(html).not.toMatch(/健康异常|病情|漏服/);
   });
@@ -82,9 +82,4 @@ describe('CareOverviewContent', () => {
     expect(CareWeeklyReportLink().type).toBe(Link);
   });
 
-  test('ends loading with an explicit identity error when no user id is available', () => {
-    expect(careOverviewIdentityError(null)).toBe('无法确认当前账号，请重新登录后再试。');
-    expect(careOverviewIdentityError({ id: '' })).toBe('无法确认当前账号，请重新登录后再试。');
-    expect(careOverviewIdentityError({ id: 'user-1' })).toBe('');
-  });
 });

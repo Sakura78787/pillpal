@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Loader2, AlertCircle, Calendar, ChevronRight, RefreshCw, Info } from 'lucide-react';
+import { Plus, Loader2, AlertCircle, Bell, Calendar, ChevronRight, RefreshCw, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
@@ -20,6 +20,8 @@ import { useUIStore } from '@/store/uiStore';
 import { useDefaultData, getDefaultMedications, getDefaultLogs } from '@/hooks/useDefaultData';
 import { format, isSameDay, isFuture, startOfDay } from 'date-fns';
 import { scheduleKeyMatches, toLocalDateKey } from '@/lib/dateTime';
+import { loadNotifications, syncNotifications } from '@/api/notifications';
+import { requireSupabase } from '@/integrations/supabase/client';
 
 /**
  * 今日用药看板（首页）
@@ -52,6 +54,19 @@ const Dashboard = () => {
   const [selectedMedication, setSelectedMedication] = useState(null);
   const [selectedTime, setSelectedTime] = useState(null);
   const [isCheckingIn, setIsCheckingIn] = useState(false);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const refreshUnreadCount = () => loadNotifications(user.id)
+      .then((items) => setUnreadNotificationCount(items.filter((item) => !item.read_at).length))
+      .catch(() => {});
+    syncNotifications().catch(() => {}).finally(refreshUnreadCount);
+    const channel = requireSupabase().channel(`dashboard-notifications:${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `recipient_user_id=eq.${user.id}` }, refreshUnreadCount)
+      .subscribe();
+    return () => requireSupabase().removeChannel(channel);
+  }, [user?.id]);
 
   // 库存管理器状态
   const [stockManagerOpen, setStockManagerOpen] = useState(false);
@@ -487,11 +502,17 @@ const Dashboard = () => {
     <div className="min-h-screen bg-gray-50 pb-24">
       {/* 顶部区域 */}
       <div className="bg-white px-4 pt-4 pb-6 rounded-b-3xl shadow-sm">
+        <div className="relative">
+        <button aria-label="站内通知" onClick={() => navigate('/notifications')} className="absolute right-1 top-1 z-10 rounded-full p-2 text-gray-600 hover:bg-gray-100">
+          <Bell className="h-5 w-5" />
+          {unreadNotificationCount > 0 && <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-rose-500 px-1 text-[10px] leading-4 text-white">{unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}</span>}
+        </button>
         {/* 日期导航 */}
         <DateNavigator 
           currentDate={currentDate} 
           onDateChange={setCurrentDate} 
         />
+        </div>
 
         {/* 日期状态提示 */}
         {getDateStatusText() && (

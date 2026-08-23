@@ -1,19 +1,25 @@
 import type { Config, Context } from '@netlify/functions';
 import { z } from 'zod';
 import { weeklyFactsV2Schema, weeklyReportV2Schema } from '../../src/features/ai-report/contracts.js';
+import { buildWeeklyReportContext } from '../../src/features/ai-report/buildWeeklyFacts.js';
+import { loadWeeklySourceData } from '../../src/features/ai-report/loadWeeklySourceData.js';
 import { getWeeklyReportConfig, type WeeklyReportFunctionConfig } from './_shared/weeklyReportConfig.ts';
 import { createWeeklyReportAdminClient, createWeeklyReportJobRepository, type WeeklyReportJob, type WeeklyReportJobRepository } from './_shared/weeklyReportJobs.ts';
 import { SupabaseAuthVerificationError, verifySupabaseUser } from './_shared/verifySupabaseUser.ts';
+import { hasActiveCareAccess } from './_shared/careAccess.ts';
 
 type JobsDeps = {
   getConfig: () => WeeklyReportFunctionConfig;
   verifyUser: (token: string) => Promise<any>;
   jobs: WeeklyReportJobRepository;
+  accessAdmin?: any;
+  hasAccess?: typeof hasActiveCareAccess;
+  loadSubjectFacts?: (input: { userId: string; now: Date }) => Promise<unknown>;
   triggerBackground: (input: { requestUrl: string; jobId: string; facts: unknown; authorization: string }) => Promise<Response>;
   now: () => Date;
 };
 
-const createRequestSchema = z.object({ facts: weeklyFactsV2Schema });
+const createRequestSchema = z.object({ facts: weeklyFactsV2Schema, subjectUserId: z.string().uuid().optional() });
 const jobIdSchema = z.string().uuid();
 const json = (value: unknown, status = 200) => Response.json(value, { status });
 const tokenFrom = (request: Request) => request.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1] || '';
@@ -103,21 +109,33 @@ async function createJob(request: Request, deps: JobsDeps) {
   const body = await request.json().catch(() => null);
   const parsed = createRequestSchema.safeParse(body);
   if (!parsed.success) return json({ code: 'AI_WEEKLY_REPORT_INVALID_INPUT' }, 400);
+  const subjectUserId = parsed.data.subjectUserId || user.id;
+  if (!(await (deps.hasAccess || hasActiveCareAccess)(deps.accessAdmin, user.id, subjectUserId))) {
+    return json({ code: 'AI_WEEKLY_REPORT_ACCESS_DENIED' }, 403);
+  }
 
   const now = deps.now();
+  // A caregiver never supplies a care recipient's facts. Reloading them with the
+  // service client keeps the subject of the report bound to the authorization.
+  const facts = subjectUserId === user.id
+    ? parsed.data.facts
+    : await (deps.loadSubjectFacts
+      ? deps.loadSubjectFacts({ userId: subjectUserId, now })
+      : loadWeeklySourceData({ client: deps.accessAdmin, userId: subjectUserId, now })
+        .then((sourceData) => buildWeeklyReportContext(sourceData, now).facts));
   await deps.jobs.deleteExpired(now);
-  let job = await deps.jobs.findActive(user.id);
+  let job = await deps.jobs.findActive(user.id, subjectUserId);
   if (!job) {
     try {
-      job = await deps.jobs.create({ userId: user.id, promptVersion: 'v2', model: config.model, now });
+      job = await deps.jobs.create({ userId: user.id, subjectUserId, promptVersion: 'v2', model: config.model, now });
     } catch {
-      job = await deps.jobs.findActive(user.id);
+      job = await deps.jobs.findActive(user.id, subjectUserId);
       if (!job) return json({ code: 'AI_WEEKLY_REPORT_JOB_CREATE_FAILED' }, 503);
     }
     const backgroundResponse = await deps.triggerBackground({
       requestUrl: request.url,
       jobId: job.id,
-      facts: parsed.data.facts,
+      facts,
       authorization: authorizationFrom(request),
     }).catch(() => null);
     if (!backgroundResponse || backgroundResponse.status !== 202) {
@@ -143,6 +161,10 @@ async function getJob(request: Request, jobId: string, deps: JobsDeps) {
   if (!jobIdSchema.safeParse(jobId).success) return json({ code: 'AI_WEEKLY_REPORT_JOB_NOT_FOUND' }, 404);
   let job = await deps.jobs.findOwned(jobId, user.id);
   if (!job) return json({ code: 'AI_WEEKLY_REPORT_JOB_NOT_FOUND' }, 404);
+  const subjectUserId = job.subject_user_id || job.user_id;
+  if (!(await (deps.hasAccess || hasActiveCareAccess)(deps.accessAdmin, user.id, subjectUserId))) {
+    return json({ code: 'AI_WEEKLY_REPORT_ACCESS_DENIED' }, 403);
+  }
   const now = deps.now();
   if (new Date(job.expires_at).getTime() <= now.getTime()) {
     return json({ code: 'AI_WEEKLY_REPORT_JOB_EXPIRED' }, 410);
@@ -176,13 +198,15 @@ const triggerBackground = ({ requestUrl, jobId, facts, authorization }: { reques
 export default async (request: Request, context: Context) => {
   const config = getWeeklyReportConfig();
   let jobs: WeeklyReportJobRepository;
+  let accessAdmin: any;
   try {
-    jobs = createWeeklyReportJobRepository(createWeeklyReportAdminClient(config.supabaseUrl, config.supabaseSecretKey));
+    accessAdmin = createWeeklyReportAdminClient(config.supabaseUrl, config.supabaseSecretKey);
+    jobs = createWeeklyReportJobRepository(accessAdmin);
   } catch {
     return json({ code: 'AI_WEEKLY_REPORT_NOT_CONFIGURED' }, 503);
   }
   return handleWeeklyReportJobsRequest(request, context, {
-    getConfig: () => config, verifyUser: verifySupabaseUser, jobs, triggerBackground, now: () => new Date(),
+    getConfig: () => config, verifyUser: verifySupabaseUser, jobs, accessAdmin, triggerBackground, now: () => new Date(),
   });
 };
 

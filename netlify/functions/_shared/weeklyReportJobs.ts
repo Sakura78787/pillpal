@@ -5,6 +5,7 @@ export type WeeklyReportJobStatus = 'queued' | 'running' | 'succeeded' | 'failed
 export type WeeklyReportJob = {
   id: string;
   user_id: string;
+  subject_user_id: string;
   status: WeeklyReportJobStatus;
   prompt_version: 'v2';
   model: string;
@@ -23,8 +24,8 @@ export type WeeklyReportJob = {
 
 export type WeeklyReportJobRepository = {
   deleteExpired(now: Date): Promise<void>;
-  findActive(userId: string): Promise<WeeklyReportJob | null>;
-  create(input: { userId: string; promptVersion: 'v2'; model: string; now: Date }): Promise<WeeklyReportJob>;
+  findActive(userId: string, subjectUserId: string): Promise<WeeklyReportJob | null>;
+  create(input: { userId: string; subjectUserId: string; promptVersion: 'v2'; model: string; now: Date }): Promise<WeeklyReportJob>;
   findOwned(jobId: string, userId: string): Promise<WeeklyReportJob | null>;
   claim(jobId: string, userId: string, now: Date): Promise<WeeklyReportJob | null>;
   complete(jobId: string, userId: string, input: { report: unknown; inputTokens: number; outputTokens: number; modelDurationMs: number; now: Date }): Promise<void>;
@@ -49,11 +50,12 @@ export function createWeeklyReportJobRepository(client: SupabaseClient): WeeklyR
       throwIfError(error);
     },
 
-    async findActive(userId) {
+    async findActive(userId, subjectUserId) {
       const { data, error } = await client
         .from('ai_weekly_report_jobs')
         .select('*')
         .eq('user_id', userId)
+        .eq('subject_user_id', subjectUserId)
         .in('status', ['queued', 'running'])
         .order('created_at', { ascending: false })
         .limit(1)
@@ -62,11 +64,11 @@ export function createWeeklyReportJobRepository(client: SupabaseClient): WeeklyR
       return data as WeeklyReportJob | null;
     },
 
-    async create({ userId, promptVersion, model, now }) {
+    async create({ userId, subjectUserId, promptVersion, model, now }) {
       const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
       const { data, error } = await client
         .from('ai_weekly_report_jobs')
-        .insert({ user_id: userId, status: 'queued', prompt_version: promptVersion, model, expires_at: expiresAt.toISOString() })
+        .insert({ user_id: userId, subject_user_id: subjectUserId, status: 'queued', prompt_version: promptVersion, model, expires_at: expiresAt.toISOString() })
         .select('*')
         .single();
       throwIfError(error);
