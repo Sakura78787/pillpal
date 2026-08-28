@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { requireSupabase } from '@/integrations/supabase/client';
 import { assertUserId, cleanMutationPayload, getErrorMessage } from '@/lib/onlineCrud';
 import { normalizeScheduledLog, normalizeScheduledLogs, normalizeTimeKey, toLocalDateKey } from '@/lib/dateTime';
+import { guestDataGateway } from '@/features/guest-experience/guestData.js';
+import { isGuestEntityId, isGuestUserId } from '@/features/guest-experience/guestSession.js';
 
 const getDateString = () => toLocalDateKey();
 const getTimeString = () => new Date().toTimeString().slice(0, 8);
@@ -35,6 +37,16 @@ export const useLogStore = create((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const targetDate = date || get().selectedDate;
+      if (isGuestUserId(userId)) {
+        const normalizedData = normalizeScheduledLogs(guestDataGateway.list('medicationLogs', (log) =>
+          log.scheduled_date === targetDate && !log.deleted_at
+        ).sort((a, b) => String(a.scheduled_time).localeCompare(String(b.scheduled_time))));
+        const nextState = { logs: normalizedData, isLoading: false };
+        if (targetDate === getDateString()) nextState.todayLogs = normalizedData;
+        if (date) nextState.selectedDate = targetDate;
+        set(nextState);
+        return { success: true, data: normalizedData, error: null };
+      }
       const client = requireSupabase();
       const { data, error } = await client
         .from('medication_logs')
@@ -64,6 +76,13 @@ export const useLogStore = create((set, get) => ({
 
     set({ isSyncing: true, error: null });
     try {
+      if (isGuestUserId(userId)) {
+        const normalizedData = normalizeScheduledLogs(guestDataGateway.list('medicationLogs', (log) =>
+          !log.deleted_at && (!startDate || log.scheduled_date >= startDate) && (!endDate || log.scheduled_date <= endDate)
+        ).sort((a, b) => String(b.scheduled_date).localeCompare(String(a.scheduled_date))));
+        set({ logs: normalizedData, todayLogs: normalizedData.filter((log) => log.scheduled_date === getDateString()), isSyncing: false });
+        return { success: true, data: normalizedData, error: null };
+      }
       const client = requireSupabase();
       let query = client
         .from('medication_logs')
@@ -92,8 +111,24 @@ export const useLogStore = create((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const client = requireSupabase();
       const payload = buildLogPayload(userId, medicationId, checkInData, 'taken');
+      if (isGuestUserId(userId)) {
+        const existing = guestDataGateway.list('medicationLogs', (log) =>
+          log.user_id === userId && String(log.medication_id) === String(medicationId) &&
+          log.scheduled_date === payload.scheduled_date && log.scheduled_time === payload.scheduled_time &&
+          log.status === 'taken' && !log.deleted_at
+        )[0];
+        if (existing) {
+          set({ isLoading: false });
+          return { success: false, error: '该时段已经打卡过了', log: existing };
+        }
+        const result = guestDataGateway.create('medicationLogs', payload);
+        if (!result.success) throw new Error(result.error);
+        const normalizedLog = normalizeScheduledLog(result.data);
+        set((state) => ({ logs: [normalizedLog, ...state.logs], todayLogs: normalizedLog.scheduled_date === getDateString() ? [normalizedLog, ...state.todayLogs] : state.todayLogs, isLoading: false }));
+        return { success: true, log: normalizedLog, error: null };
+      }
+      const client = requireSupabase();
 
       const { data: existing, error: duplicateError } = await client
         .from('medication_logs')
@@ -142,8 +177,15 @@ export const useLogStore = create((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const client = requireSupabase();
       const payload = buildLogPayload(userId, medicationId, skipData, 'skipped');
+      if (isGuestUserId(userId)) {
+        const result = guestDataGateway.create('medicationLogs', payload);
+        if (!result.success) throw new Error(result.error);
+        const normalizedLog = normalizeScheduledLog(result.data);
+        set((state) => ({ logs: [normalizedLog, ...state.logs], todayLogs: normalizedLog.scheduled_date === getDateString() ? [normalizedLog, ...state.todayLogs] : state.todayLogs, isLoading: false }));
+        return { success: true, log: normalizedLog, error: null };
+      }
+      const client = requireSupabase();
       const { data, error } = await client
         .from('medication_logs')
         .insert(payload)
@@ -172,8 +214,18 @@ export const useLogStore = create((set, get) => ({
 
   updateLog: async (logId, updates) => {
     try {
-      const client = requireSupabase();
       const payload = cleanMutationPayload(updates);
+      if (isGuestEntityId(logId)) {
+        const result = guestDataGateway.update('medicationLogs', logId, payload);
+        if (!result.success) throw new Error(result.error);
+        const normalizedLog = normalizeScheduledLog(result.data);
+        set((state) => ({
+          logs: state.logs.map((log) => String(log.id) === String(logId) ? normalizedLog : log),
+          todayLogs: state.todayLogs.map((log) => String(log.id) === String(logId) ? normalizedLog : log),
+        }));
+        return { success: true, error: null };
+      }
+      const client = requireSupabase();
       const { data, error } = await client
         .from('medication_logs')
         .update(payload)

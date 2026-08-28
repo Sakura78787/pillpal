@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { requireSupabase } from '@/integrations/supabase/client';
 import { assertUserId, cleanMutationPayload, getErrorMessage, todayString } from '@/lib/onlineCrud';
+import { guestDataGateway } from '@/features/guest-experience/guestData.js';
+import { isGuestEntityId, isGuestUserId } from '@/features/guest-experience/guestSession.js';
 
 const buildMedicationPayload = (userId, medicationData = {}) => {
   assertUserId(userId);
@@ -39,6 +41,11 @@ export const useMedicationStore = create((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
+      if (isGuestUserId(userId)) {
+        const data = guestDataGateway.list('medications').sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+        set({ medications: data, isLoading: false });
+        return { success: true, data, error: null };
+      }
       const client = requireSupabase();
       const { data, error } = await client
         .from('medications')
@@ -67,8 +74,15 @@ export const useMedicationStore = create((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const client = requireSupabase();
       const payload = buildMedicationPayload(userId, medicationData);
+      if (isGuestUserId(userId)) {
+        const result = guestDataGateway.create('medications', payload);
+        if (!result.success) throw new Error(result.error);
+        const data = result.data;
+        set((state) => ({ medications: [data, ...state.medications], isLoading: false }));
+        return { success: true, medication: data, error: null };
+      }
+      const client = requireSupabase();
       const { data, error } = await client
         .from('medications')
         .insert(payload)
@@ -94,8 +108,19 @@ export const useMedicationStore = create((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const client = requireSupabase();
       const payload = cleanMutationPayload(updates);
+      if (isGuestEntityId(medicationId)) {
+        const result = guestDataGateway.update('medications', medicationId, payload);
+        if (!result.success) throw new Error(result.error);
+        const data = result.data;
+        set((state) => ({
+          medications: state.medications.map((medication) => String(medication.id) === String(medicationId) ? data : medication),
+          selectedMedication: data,
+          isLoading: false,
+        }));
+        return { success: true, medication: data, error: null };
+      }
+      const client = requireSupabase();
       const { data, error } = await client
         .from('medications')
         .update(payload)
@@ -152,6 +177,11 @@ export const useMedicationStore = create((set, get) => ({
     }
 
     try {
+      if (isGuestEntityId(medicationId)) {
+        const data = guestDataGateway.list('medications', (item) => String(item.id) === String(medicationId))[0] || null;
+        set({ selectedMedication: data });
+        return data;
+      }
       const client = requireSupabase();
       const { data, error } = await client
         .from('medications')

@@ -82,6 +82,13 @@ describe('CareOverviewContent', () => {
     expect(CareWeeklyReportLink().type).toBe(Link);
   });
 
+  test('uses the visitor boundary and a clearly-labelled sample handoff for guests', () => {
+    const html = renderContent({ overview, aiEnabled: true, isGuest: true });
+
+    expect(html).toContain('当前为访客体验');
+    expect(html).toContain('查看 AI 家庭照护周报示例');
+  });
+
   test('ends loading with an explicit identity error when no user id is available', () => {
     expect(careOverviewIdentityError(null)).toBe('无法确认当前账号，请重新登录后再试。');
     expect(careOverviewIdentityError({ id: '' })).toBe('无法确认当前账号，请重新登录后再试。');

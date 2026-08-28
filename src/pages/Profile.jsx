@@ -20,13 +20,16 @@ import { toast } from 'sonner';
 import { useAuthStore } from '@/store/authStore';
 import { useMedicationStore } from '@/store/medicationStore';
 import { useHealthStore } from '@/store/healthStore';
+import { useLogStore } from '@/store/logStore';
+import { useAppointmentStore } from '@/store/appointmentStore';
 import { useUIStore } from '@/store/uiStore';
+import { AuthStatus } from '@/types/auth';
 
 export const ProfileCareLink = ({ children } = {}) => (
   <Link to="/care" className="block">{children}</Link>
 );
 
-export const ProfileMenu = ({ navigate }) => {
+export const ProfileMenu = ({ navigate, isGuest = false }) => {
   const menuItems = [
     {
       icon: Heart,
@@ -68,10 +71,12 @@ export const ProfileMenu = ({ navigate }) => {
     }
   ];
 
+  const visibleItems = isGuest ? menuItems.filter((item) => !['提醒设置', '数据管理'].includes(item.label)) : menuItems;
+
   return (
     <div className="px-4 py-6 space-y-3">
       <h3 className="text-sm font-medium text-gray-500 px-1">功能</h3>
-      {menuItems.map((item) => {
+      {visibleItems.map((item) => {
         const Icon = item.icon;
         const card = (
           <Card
@@ -103,7 +108,8 @@ export const ProfileMenu = ({ navigate }) => {
  */
 const Profile = () => {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, authStatus } = useAuthStore();
+  const isGuest = authStatus === AuthStatus.GUEST;
   const { medications } = useMedicationStore();
   const { records } = useHealthStore();
   const { setPageTitle } = useUIStore();
@@ -126,7 +132,7 @@ const Profile = () => {
       setIsLoading(true);
       try {
         // 从localStorage读取连续打卡天数
-        const streakData = localStorage.getItem('streak_data');
+        const streakData = isGuest ? null : localStorage.getItem('streak_data');
         const streak = streakData ? JSON.parse(streakData).currentStreak || 0 : 0;
 
         // 统计活跃药物数量
@@ -156,7 +162,7 @@ const Profile = () => {
     };
 
     loadStats();
-  }, [medications, records, user]);
+  }, [medications, records, user, isGuest]);
 
   // 可爱的表情头像数组
   const avatars = ['🐻', '🐼', '🐨', '🐯', '🦁', '🐷', '🐸', '🐙', '🦄', '🐝'];
@@ -180,6 +186,20 @@ const Profile = () => {
     }
   };
 
+  const handleResetGuestExperience = () => {
+    if (!window.confirm('将清空本次访客操作并恢复合成示例数据，是否继续？')) return;
+    const result = useAuthStore.getState().resetGuestSession();
+    if (result.success) {
+      useMedicationStore.setState({ medications: result.session.medications, selectedMedication: null });
+      useHealthStore.setState({ records: result.session.healthRecords, todayRecords: [] });
+      useLogStore.setState({ logs: result.session.medicationLogs, todayLogs: [] });
+      useAppointmentStore.setState({ appointments: result.session.appointments, selectedAppointment: null });
+      toast.success('访客体验已重置为合成示例数据');
+    } else {
+      toast.error(result.error || '重置失败，请稍后重试');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -198,10 +218,10 @@ const Profile = () => {
           </div>
           <div className="flex-1">
             <h2 className="text-xl font-bold text-gray-900 mb-1">
-              {user?.username || user?.email || '用户'}
+              {isGuest ? '访客体验' : user?.username || user?.email || '用户'}
             </h2>
             <p className="text-sm text-gray-500">
-              已登录，核心数据在线保存
+              {isGuest ? '数据仅在当前标签页会话内保留，不上传云端' : '已登录，核心数据在线保存'}
             </p>
           </div>
         </div>
@@ -235,7 +255,7 @@ const Profile = () => {
         </div>
       </div>
 
-      <ProfileMenu navigate={navigate} />
+      <ProfileMenu navigate={navigate} isGuest={isGuest} />
 
       {/* 关于我们 */}
       <div className="px-4 py-2">
@@ -254,7 +274,12 @@ const Profile = () => {
         </Card>
       </div>
 
-      {/* 退出登录 */}
+      {isGuest ? (
+        <div className="space-y-3 px-4 py-6">
+          <Button variant="outline" className="w-full" onClick={handleResetGuestExperience}>重置体验</Button>
+          <Button className="w-full bg-green-600 hover:bg-green-700" onClick={() => navigate('/login')}>登录使用云端版</Button>
+        </div>
+      ) : (
       <div className="px-4 py-6">
         <Button 
           variant="outline" 
@@ -264,6 +289,7 @@ const Profile = () => {
           退出登录
         </Button>
       </div>
+      )}
 
       {/* 医学免责声明 */}
       <div className="px-6 py-4 text-center">

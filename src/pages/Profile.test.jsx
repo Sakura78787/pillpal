@@ -17,4 +17,12 @@ describe('ProfileMenu', () => {
   test('uses a client router Link for the family care item', () => {
     expect(ProfileCareLink().type).toBe(Link);
   });
+
+  test('hides account-only data and reminder settings for visitors', () => {
+    const html = renderToStaticMarkup(<MemoryRouter><ProfileMenu navigate={vi.fn()} isGuest /></MemoryRouter>);
+
+    expect(html).toContain('家人照护');
+    expect(html).not.toContain('提醒设置');
+    expect(html).not.toContain('数据管理');
+  });
 });

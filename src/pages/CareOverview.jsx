@@ -10,6 +10,8 @@ import { requireSupabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { cn } from '@/lib/utils';
+import { getGuestWeeklySourceData } from '@/features/guest-experience/guestData.js';
+import { AuthStatus } from '@/types/auth';
 
 const levelStyle = {
   action: 'border-rose-200 bg-rose-50',
@@ -17,19 +19,21 @@ const levelStyle = {
   info: 'border-sky-200 bg-sky-50',
 };
 
-const DemoBoundary = () => (
+const DemoBoundary = ({ isGuest = false }) => (
   <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm leading-6 text-sky-900">
     <p className="font-medium">Demo 使用边界</p>
-    <p>当前使用本人账号数据模拟异地子女只读照护视角，尚未建立真实家庭账号绑定。</p>
+    <p>{isGuest
+      ? '当前为访客体验，使用本标签页内的合成数据模拟照护视角，尚未建立真实家庭账号绑定。'
+      : '当前使用本人账号数据模拟异地子女只读照护视角，尚未建立真实家庭账号绑定。'}</p>
   </div>
 );
 
-export const CareWeeklyReportLink = () => (
+export const CareWeeklyReportLink = ({ isGuest = false } = {}) => (
   <Link
     to="/weekly-report?from=care"
     className={cn(buttonVariants(), 'w-full bg-emerald-600 hover:bg-emerald-700')}
   >
-    生成 AI 家庭照护周报
+    {isGuest ? '查看 AI 家庭照护周报示例' : '生成 AI 家庭照护周报'}
   </Link>
 );
 
@@ -37,11 +41,11 @@ export const careOverviewIdentityError = (user) => (
   user?.id ? '' : '无法确认当前账号，请重新登录后再试。'
 );
 
-export function CareOverviewContent({ overview = null, loading = false, error = '', aiEnabled = false }) {
+export function CareOverviewContent({ overview = null, loading = false, error = '', aiEnabled = false, isGuest = false }) {
   if (loading) {
     return (
       <div className="space-y-4">
-        <DemoBoundary />
+        <DemoBoundary isGuest={isGuest} />
         <div className="flex min-h-[40vh] flex-col items-center justify-center text-gray-500">
           <Loader2 className="mb-3 h-8 w-8 animate-spin text-emerald-600" />
           <p>正在整理最近 7 天照护信息…</p>
@@ -53,7 +57,7 @@ export function CareOverviewContent({ overview = null, loading = false, error = 
   if (error) {
     return (
       <div className="space-y-4">
-        <DemoBoundary />
+        <DemoBoundary isGuest={isGuest} />
         <Card className="border-red-200 bg-red-50">
           <CardContent className="flex gap-3 p-5 text-sm text-red-700">
             <AlertCircle className="h-5 w-5 shrink-0" />
@@ -75,7 +79,7 @@ export function CareOverviewContent({ overview = null, loading = false, error = 
 
   return (
     <div className="space-y-4">
-      <DemoBoundary />
+      <DemoBoundary isGuest={isGuest} />
 
       <Card>
         <CardHeader className="pb-3">
@@ -131,7 +135,7 @@ export function CareOverviewContent({ overview = null, loading = false, error = 
           <div className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-emerald-600" /><p className="font-medium">AI 家庭照护周报</p></div>
           <p className="text-sm leading-6 text-gray-600">在现有安全校验与健康数据确认流程下，把这些记录整理成家庭照护摘要。</p>
           {aiEnabled ? (
-            <CareWeeklyReportLink />
+            <CareWeeklyReportLink isGuest={isGuest} />
           ) : (
             <Button className="w-full" disabled>AI 家庭照护周报暂未开启</Button>
           )}
@@ -143,7 +147,8 @@ export function CareOverviewContent({ overview = null, loading = false, error = 
 
 const CareOverview = () => {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, authStatus } = useAuthStore();
+  const isGuest = authStatus === AuthStatus.GUEST;
   const { setPageTitle } = useUIStore();
   const [overview, setOverview] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -164,7 +169,9 @@ const CareOverview = () => {
       setError('');
       try {
         const now = new Date();
-        const sourceData = await loadWeeklySourceData({ client: requireSupabase(), userId: user.id, now });
+        const sourceData = isGuest
+          ? getGuestWeeklySourceData()
+          : await loadWeeklySourceData({ client: requireSupabase(), userId: user.id, now });
         if (!cancelled) setOverview(buildCareOverview(sourceData, now));
       } catch {
         if (!cancelled) setError('请稍后重试；现有记录不会受到影响。');
@@ -173,14 +180,14 @@ const CareOverview = () => {
       }
     })();
     return () => { cancelled = true; };
-  }, [user?.id]);
+  }, [user?.id, isGuest]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 pb-24">
       <Button variant="ghost" onClick={() => navigate('/dashboard')} className="mb-4">
         <ArrowLeft className="mr-2 h-4 w-4" />返回首页
       </Button>
-      <CareOverviewContent overview={overview} loading={loading} error={error} aiEnabled={isWeeklyReportEnabled()} />
+      <CareOverviewContent overview={overview} loading={loading} error={error} aiEnabled={isGuest || isWeeklyReportEnabled()} isGuest={isGuest} />
     </div>
   );
 };

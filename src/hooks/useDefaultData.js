@@ -1,17 +1,22 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '@/store/authStore';
+import { AuthStatus } from '@/types/auth';
 
 /**
  * 默认数据管理Hook
  * 为新用户展示默认示例数据，用户添加真实数据后不再显示
  */
 export const useDefaultData = (dataType) => {
-  const { user } = useAuthStore();
+  const { user, authStatus } = useAuthStore();
   const [hasRealData, setHasRealData] = useState(false);
   
   // 检查用户是否已有真实数据
   useEffect(() => {
     if (!user?.id) return;
+    if (authStatus === AuthStatus.GUEST) {
+      setHasRealData(true);
+      return;
+    }
     
     const checkRealData = async () => {
       const flagKey = `has_real_${dataType}_${user.id}`;
@@ -20,11 +25,15 @@ export const useDefaultData = (dataType) => {
     };
     
     checkRealData();
-  }, [user, dataType]);
+  }, [user, dataType, authStatus]);
   
   // 标记用户已添加真实数据
   const markHasRealData = () => {
     if (!user?.id) return;
+    if (authStatus === AuthStatus.GUEST) {
+      setHasRealData(true);
+      return;
+    }
     const flagKey = `has_real_${dataType}_${user.id}`;
     localStorage.setItem(flagKey, 'true');
     setHasRealData(true);

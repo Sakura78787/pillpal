@@ -20,9 +20,13 @@
 4. 提交前至少运行：
 
    ```bash
+   npm run lint
    npm test
+   npm run test:ai
    npm run build
    ```
+
+   `npm run lint` 采用 105 条既有告警的总数门槛：告警总数超过 105 会使 CI 失败。请不要通过新增禁用注释来绕过检查；需要清理历史告警时，可用 `npm run lint:strict` 查看零告警目标。
 
 ## 代码约束
 

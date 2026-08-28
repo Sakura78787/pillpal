@@ -8,6 +8,7 @@ export const AuthStatus = {
   UNAUTHENTICATED: 'unauthenticated',
   AUTHENTICATING: 'authenticating',
   AUTHENTICATED: 'authenticated',
+  GUEST: 'guest',
   ERROR: 'error'
 };
 
