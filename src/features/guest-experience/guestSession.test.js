@@ -81,13 +81,17 @@ describe('guest session repository', () => {
   });
 
   test('continues in memory when session storage cannot be written', () => {
-    const repository = createGuestSessionRepository({ storage: createStorage({ failWrites: true }), now: () => NOW });
-
+    const storage = createStorage();
+    const repository = createGuestSessionRepository({ storage, now: () => NOW });
     const initial = repository.read();
+    storage.setItem = () => { throw new Error('storage unavailable'); };
+
     const write = repository.replace({ ...initial.session, healthRecords: [] });
 
-    expect(initial.persistence).toBe('memory');
+    expect(initial.persistence).toBe('session');
+    expect(write.persistence).toBe('memory');
     expect(write.success).toBe(true);
+    expect(repository.read().persistence).toBe('memory');
     expect(repository.read().session.healthRecords).toEqual([]);
   });
 

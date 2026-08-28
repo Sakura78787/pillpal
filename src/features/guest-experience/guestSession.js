@@ -36,6 +36,16 @@ export const isGuestUserId = (userId) => userId === GUEST_USER_ID;
 export const isGuestEntityId = (entityId) => String(entityId || '').startsWith('guest-');
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
+const persistenceListeners = new Set();
+
+export const subscribeGuestSessionPersistence = (listener) => {
+  persistenceListeners.add(listener);
+  return () => persistenceListeners.delete(listener);
+};
+
+const notifyPersistenceChange = (persistence) => {
+  persistenceListeners.forEach((listener) => listener(persistence));
+};
 
 const localDateAfter = (now, amount) => {
   const next = new Date(now);
@@ -212,9 +222,11 @@ export const createGuestSessionRepository = ({ storage = null, now = () => new D
   let persistence = storage ? 'session' : 'memory';
 
   const persist = (session) => {
+    const previousPersistence = persistence;
     memorySession = clone(session);
     if (!storage) {
       persistence = 'memory';
+      if (persistence !== previousPersistence) notifyPersistenceChange(persistence);
       return;
     }
     try {
@@ -223,6 +235,7 @@ export const createGuestSessionRepository = ({ storage = null, now = () => new D
     } catch {
       persistence = 'memory';
     }
+    if (persistence !== previousPersistence) notifyPersistenceChange(persistence);
   };
 
   const createAndPersistSeed = () => {

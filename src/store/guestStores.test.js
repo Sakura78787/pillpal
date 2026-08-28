@@ -1,4 +1,9 @@
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
+const requireSupabase = vi.hoisted(() => vi.fn(() => {
+  throw new Error('访客操作不应请求 Supabase');
+}));
+
+vi.mock('@/integrations/supabase/client', () => ({ requireSupabase }));
 import { GUEST_USER_ID, guestSessionRepository } from '@/features/guest-experience/guestSession.js';
 import { useAppointmentStore } from './appointmentStore.js';
 import { useHealthStore } from './healthStore.js';
@@ -6,6 +11,7 @@ import { useLogStore } from './logStore.js';
 import { useMedicationStore } from './medicationStore.js';
 
 const resetStores = () => {
+  requireSupabase.mockClear();
   guestSessionRepository.reset();
   useMedicationStore.setState({ medications: [], selectedMedication: null, error: null });
   useLogStore.setState({ logs: [], todayLogs: [], error: null });
@@ -31,6 +37,7 @@ describe('guest domain stores', () => {
     await useMedicationStore.getState().deleteMedication(added.medication.id);
     expect(guestSessionRepository.read().session.medications.find((item) => item.id === added.medication.id))
       .toMatchObject({ status: 'deleted' });
+    expect(requireSupabase).not.toHaveBeenCalled();
   });
 
   test('prevents duplicate guest check-ins and persists skip records without Supabase', async () => {
@@ -44,6 +51,7 @@ describe('guest domain stores', () => {
     expect(checkIn).toMatchObject({ success: true, log: { is_guest: true, status: 'taken' } });
     expect(duplicate).toMatchObject({ success: false, error: '该时段已经打卡过了' });
     expect(skipped).toMatchObject({ success: true, log: { is_guest: true, status: 'skipped' } });
+    expect(requireSupabase).not.toHaveBeenCalled();
   });
 
   test('persists guest health records and appointments without an online account', async () => {
@@ -56,5 +64,6 @@ describe('guest domain stores', () => {
 
     expect(record).toMatchObject({ success: true, record: { is_guest: true, note: '访客记录' } });
     expect(appointment).toMatchObject({ success: true, appointment: { is_guest: true, hospital_name: '访客医院' } });
+    expect(requireSupabase).not.toHaveBeenCalled();
   });
 });

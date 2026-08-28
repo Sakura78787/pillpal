@@ -34,7 +34,7 @@
 
 ## 照护 Demo 权限边界
 
-- `/care` 仍在现有 `ProtectedRoute` 和单账号 `auth.uid() = user_id` 边界内，只读取当前登录账号自己的数据。
+- `/care` 对登录用户仍在单账号 `auth.uid() = user_id` 边界内，只读取当前登录账号自己的数据；访客不使用 Supabase，而只读取本标签页内的合成 session 数据。
 - `from=care` 只改变周报标题、说明和返回路径，不扩大模型 payload、数据库权限或 AI 安全边界。
 - 当前未实现真实家庭邀请、双账号授权、共享 RLS、撤销或审计；阶段二当前分支尚未发布。
 
@@ -90,7 +90,7 @@ git fsck --full --no-reflogs
 
 - 生产依赖：`react-router-dom` 已从 `6.30.4` 升级到 `6.30.6`，修复其可兼容更新覆盖的一项 open-redirect 类告警。仍有 2 个 moderate 告警，需迁移到 React Router `7.18+` 才能消除；当前不以不兼容升级冒充修复。
 - 开发工具链：审计仍报告 1 个 critical、24 个 high、6 个 moderate，主要来自 Vitest UI、Vite、ESLint 8 与 Tailwind/PostCSS 的开发依赖。它们不进入浏览器生产包，但本地开发服务器和 CI 环境仍应升级；须在独立升级分支验证 Vite/Vitest/ESLint 的兼容性后处理。
-- 静态检查：已建立 ESLint 基线。当前为 105 条既有 warning，`npm run lint` 通过但不允许告警数量增加；`npm run lint:strict` 保留零告警检查。请以专门任务清理未使用导入、`switch` 块作用域和 Hooks 依赖告警。
+- 静态检查：已建立 ESLint 基线。当前为 105 条既有 warning，`npm run lint` 允许总数不超过 105；`npm run lint:strict` 保留零告警检查。请以专门任务清理未使用导入、`switch` 块作用域和 Hooks 依赖告警。
 - GitHub Secret Scanning 当前无告警；对受跟踪文件和可见 Git 历史进行常见 token 前缀扫描也未发现命中。`git fsck` 发现本地对象库中有 2 个 dangling commit 和 2 个 dangling blob，属于未引用对象，发布前不应把它们解释为仓库内容或推送它们。
 - GitHub 尚未启用 Dependabot alerts，也未配置 code scanning；分支保护与自动依赖更新应在仓库管理员设置中持续维护。
 

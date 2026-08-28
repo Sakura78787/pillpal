@@ -37,6 +37,23 @@ export const isRouteAccessAllowed = (authStatus, allowGuest = false) => (
   authStatus === AuthStatus.AUTHENTICATED || (allowGuest && authStatus === AuthStatus.GUEST)
 );
 
+export const GUEST_ACCESSIBLE_ROUTE_PATHS = [
+  '/dashboard',
+  '/medications',
+  '/medications/add',
+  '/medications/edit/:id',
+  '/logs',
+  '/appointments',
+  '/inventory',
+  '/health',
+  '/profile',
+  '/about',
+  '/weekly-report',
+  '/care',
+];
+
+export const isGuestAccessibleRoute = (path) => GUEST_ACCESSIBLE_ROUTE_PATHS.includes(path);
+
 const ProtectedRoute = ({ children, showNav = true, allowGuest = false }) => {
   const location = useLocation();
   const { authStatus } = useAuthStore();
@@ -57,20 +74,20 @@ export const AppRoutes = () => (
     <Route path="/" element={<Landing />} />
     <Route path="/login" element={<Login />} />
     <Route path="/auth/callback" element={<AuthCallback />} />
-    <Route path="/dashboard" element={<ProtectedRoute allowGuest><Dashboard /></ProtectedRoute>} />
-    <Route path="/medications" element={<ProtectedRoute allowGuest><Medications /></ProtectedRoute>} />
-    <Route path="/medications/add" element={<ProtectedRoute showNav={false} allowGuest><AddMedication /></ProtectedRoute>} />
-    <Route path="/medications/edit/:id" element={<ProtectedRoute showNav={false} allowGuest><EditMedication /></ProtectedRoute>} />
-    <Route path="/logs" element={<ProtectedRoute allowGuest><Logs /></ProtectedRoute>} />
-    <Route path="/appointments" element={<ProtectedRoute allowGuest><Appointments /></ProtectedRoute>} />
-    <Route path="/inventory" element={<ProtectedRoute allowGuest><Inventory /></ProtectedRoute>} />
-    <Route path="/health" element={<ProtectedRoute allowGuest><Health /></ProtectedRoute>} />
-    <Route path="/profile" element={<ProtectedRoute allowGuest><Profile /></ProtectedRoute>} />
+    <Route path="/dashboard" element={<ProtectedRoute allowGuest={isGuestAccessibleRoute('/dashboard')}><Dashboard /></ProtectedRoute>} />
+    <Route path="/medications" element={<ProtectedRoute allowGuest={isGuestAccessibleRoute('/medications')}><Medications /></ProtectedRoute>} />
+    <Route path="/medications/add" element={<ProtectedRoute showNav={false} allowGuest={isGuestAccessibleRoute('/medications/add')}><AddMedication /></ProtectedRoute>} />
+    <Route path="/medications/edit/:id" element={<ProtectedRoute showNav={false} allowGuest={isGuestAccessibleRoute('/medications/edit/:id')}><EditMedication /></ProtectedRoute>} />
+    <Route path="/logs" element={<ProtectedRoute allowGuest={isGuestAccessibleRoute('/logs')}><Logs /></ProtectedRoute>} />
+    <Route path="/appointments" element={<ProtectedRoute allowGuest={isGuestAccessibleRoute('/appointments')}><Appointments /></ProtectedRoute>} />
+    <Route path="/inventory" element={<ProtectedRoute allowGuest={isGuestAccessibleRoute('/inventory')}><Inventory /></ProtectedRoute>} />
+    <Route path="/health" element={<ProtectedRoute allowGuest={isGuestAccessibleRoute('/health')}><Health /></ProtectedRoute>} />
+    <Route path="/profile" element={<ProtectedRoute allowGuest={isGuestAccessibleRoute('/profile')}><Profile /></ProtectedRoute>} />
     <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-    <Route path="/about" element={<ProtectedRoute allowGuest><About /></ProtectedRoute>} />
+    <Route path="/about" element={<ProtectedRoute allowGuest={isGuestAccessibleRoute('/about')}><About /></ProtectedRoute>} />
     <Route path="/profile/reminders" element={<ProtectedRoute><ReminderSettings /></ProtectedRoute>} />
-    <Route path="/weekly-report" element={<ProtectedRoute allowGuest><WeeklyReport /></ProtectedRoute>} />
-    <Route path="/care" element={<ProtectedRoute allowGuest><CareOverview /></ProtectedRoute>} />
+    <Route path="/weekly-report" element={<ProtectedRoute allowGuest={isGuestAccessibleRoute('/weekly-report')}><WeeklyReport /></ProtectedRoute>} />
+    <Route path="/care" element={<ProtectedRoute allowGuest={isGuestAccessibleRoute('/care')}><CareOverview /></ProtectedRoute>} />
     <Route path="/eval-lab" element={<ProtectedRoute><EvalLab /></ProtectedRoute>} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>
