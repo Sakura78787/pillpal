@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { requireSupabase } from '@/integrations/supabase/client';
 import { assertUserId, cleanMutationPayload, getErrorMessage } from '@/lib/onlineCrud';
 import { toLocalDateKey } from '@/lib/dateTime';
+import { guestDataGateway } from '@/features/guest-experience/guestData.js';
+import { isGuestEntityId, isGuestUserId } from '@/features/guest-experience/guestSession.js';
 
 const buildRecordPayload = (userId, recordData = {}) => {
   assertUserId(userId);
@@ -32,6 +34,11 @@ export const useHealthStore = create((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
+      if (isGuestUserId(userId)) {
+        const data = guestDataGateway.list('healthRecords', (record) => !record.deleted_at && (!recordType || record.record_type === recordType));
+        set({ records: data, todayRecords: getTodayRecords(data), isLoading: false });
+        return { success: true, data, error: null };
+      }
       const client = requireSupabase();
       let query = client
         .from('health_records')
@@ -62,6 +69,15 @@ export const useHealthStore = create((set, get) => ({
 
     set({ isSyncing: true, error: null });
     try {
+      if (isGuestUserId(userId)) {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - days);
+        const data = guestDataGateway.list('healthRecords', (record) =>
+          !record.deleted_at && (!recordType || record.record_type === recordType) && new Date(record.recorded_at) >= cutoff
+        );
+        set({ records: data, todayRecords: getTodayRecords(data), isSyncing: false });
+        return { success: true, data, error: null };
+      }
       const client = requireSupabase();
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
@@ -95,8 +111,18 @@ export const useHealthStore = create((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const client = requireSupabase();
       const payload = buildRecordPayload(userId, recordData);
+      if (isGuestUserId(userId)) {
+        const result = guestDataGateway.create('healthRecords', payload);
+        if (!result.success) throw new Error(result.error);
+        const data = result.data;
+        set((state) => {
+          const records = [data, ...state.records];
+          return { records, todayRecords: getTodayRecords(records), isLoading: false };
+        });
+        return { success: true, record: data, error: null };
+      }
+      const client = requireSupabase();
       const { data, error } = await client
         .from('health_records')
         .insert(payload)
@@ -125,8 +151,18 @@ export const useHealthStore = create((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const client = requireSupabase();
       const payload = cleanMutationPayload(updates);
+      if (isGuestEntityId(recordId)) {
+        const result = guestDataGateway.update('healthRecords', recordId, payload);
+        if (!result.success) throw new Error(result.error);
+        const data = result.data;
+        set((state) => {
+          const records = state.records.map((record) => String(record.id) === String(recordId) ? data : record);
+          return { records, todayRecords: getTodayRecords(records), selectedRecord: data, isLoading: false };
+        });
+        return { success: true, record: data, error: null };
+      }
+      const client = requireSupabase();
       const { data, error } = await client
         .from('health_records')
         .update(payload)

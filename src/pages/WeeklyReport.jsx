@@ -17,6 +17,12 @@ import {
   saveWeeklyReportJobId,
 } from '@/features/ai-report/jobStorage.js';
 import WeeklyReportResult from '@/features/ai-report/components/WeeklyReportResult.jsx';
+import { AuthStatus } from '@/types/auth';
+import {
+  guestWeeklyReportPreview,
+  guestWeeklyReportPreviewFacts,
+  guestWeeklyReportPreviewMedicationNames,
+} from '@/features/guest-experience/guestWeeklyReportPreview.js';
 
 const STATUS_TEXT = {
   queued: '任务已进入队列，正在准备分析…',
@@ -72,11 +78,32 @@ export const WeeklyReportUnavailable = ({ view, onBack }) => (
   </div>
 );
 
+export const GuestWeeklyReportPreview = ({ onBack }) => (
+  <div className="min-h-screen bg-gray-50 p-4 pb-24">
+    <Button variant="ghost" onClick={onBack} className="mb-4">
+      <ArrowLeft className="w-4 h-4 mr-2" />返回照护概览
+    </Button>
+    <Card className="mb-4 border-amber-200 bg-amber-50">
+      <CardContent className="space-y-2 p-5 text-sm leading-6 text-amber-900">
+        <p className="font-medium">访客体验 AI 示例</p>
+        <p>以下展示固定的合成评测样例，不读取你刚才的访客操作，不调用模型，也不是实时生成。</p>
+        <p>该样例符合 V2 输出合同；V2 整体质量 Gate 尚未通过。</p>
+      </CardContent>
+    </Card>
+    <WeeklyReportResult
+      report={guestWeeklyReportPreview}
+      facts={guestWeeklyReportPreviewFacts}
+      medicationNamesByRef={guestWeeklyReportPreviewMedicationNames}
+    />
+  </div>
+);
+
 const WeeklyReport = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const view = weeklyReportView(location.search);
-  const { user } = useAuthStore();
+  const { user, authStatus } = useAuthStore();
+  const isGuest = authStatus === AuthStatus.GUEST;
   const { setPageTitle } = useUIStore();
   const enabled = isWeeklyReportEnabled();
   const [facts, setFacts] = useState(null);
@@ -92,7 +119,7 @@ const WeeklyReport = () => {
   useEffect(() => { setPageTitle(view.title); }, [setPageTitle, view.title]);
 
   useEffect(() => {
-    if (!enabled || !user?.id) return;
+    if (!enabled || !user?.id || isGuest) return;
     let cancelled = false;
     (async () => {
       setIsLoadingFacts(true);
@@ -111,7 +138,7 @@ const WeeklyReport = () => {
       }
     })();
     return () => { cancelled = true; };
-  }, [enabled, user?.id]);
+  }, [enabled, user?.id, isGuest]);
 
   const monitorJob = useCallback(async (jobId, pollIntervalMs = 2000) => {
     pollingControllerRef.current?.abort();
@@ -144,12 +171,12 @@ const WeeklyReport = () => {
   }, [user?.id]);
 
   useEffect(() => {
-    if (!facts || !user?.id || activeJobId || report) return;
+    if (!facts || !user?.id || activeJobId || report || isGuest) return;
     const storedJobId = getWeeklyReportJobId(user.id);
     if (!storedJobId) return;
     setActiveJobId(storedJobId);
     monitorJob(storedJobId);
-  }, [activeJobId, facts, monitorJob, report, user?.id]);
+  }, [activeJobId, facts, isGuest, monitorJob, report, user?.id]);
 
   useEffect(() => () => pollingControllerRef.current?.abort(), []);
 
@@ -184,6 +211,10 @@ const WeeklyReport = () => {
     saveWeeklyReportJobId(user.id, result.job.id);
     await monitorJob(result.job.id, result.pollAfterMs);
   };
+
+  if (isGuest) {
+    return <GuestWeeklyReportPreview onBack={() => navigate(view.returnTarget)} />;
+  }
 
   if (!enabled) {
     return <WeeklyReportUnavailable view={view} onBack={() => navigate(view.returnTarget)} />;

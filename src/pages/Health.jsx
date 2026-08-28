@@ -21,6 +21,7 @@ import RecentList from '@/components/health/RecentList';
 import { useAuthStore } from '@/store/authStore';
 import { useHealthStore } from '@/store/healthStore';
 import { useUIStore } from '@/store/uiStore';
+import { AuthStatus } from '@/types/auth';
 import { useDefaultData, getDefaultHealthRecords, checkHealthValue } from '@/hooks/useDefaultData';
 
 /**
@@ -29,7 +30,8 @@ import { useDefaultData, getDefaultHealthRecords, checkHealthValue } from '@/hoo
  */
 const Health = () => {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, authStatus } = useAuthStore();
+  const isGuest = authStatus === AuthStatus.GUEST;
   const { 
     records, 
     isLoading, 
@@ -219,13 +221,9 @@ const Health = () => {
         {isSyncing && (
           <Loader2 className="w-4 h-4 animate-spin text-gray-400 mr-2" />
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleExport}
-        >
+        {!isGuest && <Button variant="ghost" size="icon" onClick={handleExport}>
           <Download className="w-5 h-5" />
-        </Button>
+        </Button>}
       </div>
 
       {/* 内容区域 */}

@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { requireSupabase } from '@/integrations/supabase/client';
 import { assertUserId, cleanMutationPayload, getErrorMessage } from '@/lib/onlineCrud';
+import { guestDataGateway } from '@/features/guest-experience/guestData.js';
+import { isGuestEntityId, isGuestUserId } from '@/features/guest-experience/guestSession.js';
 
 const buildAppointmentPayload = (userId, appointmentData = {}) => {
   assertUserId(userId);
@@ -36,6 +38,11 @@ export const useAppointmentStore = create((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
+      if (isGuestUserId(userId)) {
+        const data = sortAppointments(guestDataGateway.list('appointments', (appointment) => !appointment.deleted_at));
+        set({ appointments: data, isLoading: false });
+        return { success: true, data, error: null };
+      }
       const client = requireSupabase();
       const { data, error } = await client
         .from('appointments')
@@ -65,8 +72,15 @@ export const useAppointmentStore = create((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const client = requireSupabase();
       const payload = buildAppointmentPayload(userId, appointmentData);
+      if (isGuestUserId(userId)) {
+        const result = guestDataGateway.create('appointments', payload);
+        if (!result.success) throw new Error(result.error);
+        const data = result.data;
+        set((state) => ({ appointments: sortAppointments([data, ...state.appointments]), isLoading: false }));
+        return { success: true, appointment: data, error: null };
+      }
+      const client = requireSupabase();
       const { data, error } = await client
         .from('appointments')
         .insert(payload)
@@ -91,8 +105,19 @@ export const useAppointmentStore = create((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const client = requireSupabase();
       const payload = cleanMutationPayload(updates);
+      if (isGuestEntityId(appointmentId)) {
+        const result = guestDataGateway.update('appointments', appointmentId, payload);
+        if (!result.success) throw new Error(result.error);
+        const data = result.data;
+        set((state) => ({
+          appointments: sortAppointments(state.appointments.map((appointment) => String(appointment.id) === String(appointmentId) ? data : appointment)),
+          selectedAppointment: data,
+          isLoading: false,
+        }));
+        return { success: true, appointment: data, error: null };
+      }
+      const client = requireSupabase();
       const { data, error } = await client
         .from('appointments')
         .update(payload)
@@ -151,6 +176,11 @@ export const useAppointmentStore = create((set, get) => ({
     }
 
     try {
+      if (isGuestEntityId(appointmentId)) {
+        const data = guestDataGateway.list('appointments', (item) => String(item.id) === String(appointmentId))[0] || null;
+        set({ selectedAppointment: data });
+        return data;
+      }
       const client = requireSupabase();
       const { data, error } = await client
         .from('appointments')

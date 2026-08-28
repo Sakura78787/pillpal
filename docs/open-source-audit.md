@@ -1,6 +1,6 @@
 # PillPal 开源与依赖审计
 
-- 更新日期：2026-08-22
+- 更新日期：2026-08-28
 - 代码基线：`9e846487c09eaefce7246c9c47701051ca0845bf`
 
 ## 公开范围
@@ -48,7 +48,7 @@
 - 生产环境保持 `AI_WEEKLY_REPORT_EVAL_MODE=false`，避免返回评测用的内部调用元数据。
 - 服务端日志只记录阶段、受控诊断码、时延和 token 汇总，不应记录完整 payload、模型原文、access token 或密钥。
 
-## 2026-08-22 依赖审计
+## 2026-08-22 依赖审计（历史基线）
 
 执行环境与时间：
 
@@ -76,6 +76,23 @@ npm run test:ai
 npm run build
 npm audit --omit=dev
 ```
+
+## 2026-08-28 仓库维护审计
+
+执行环境与命令：
+
+```bash
+npm audit --omit=dev --json
+npm audit --json
+npm run lint
+git fsck --full --no-reflogs
+```
+
+- 生产依赖：`react-router-dom` 已从 `6.30.4` 升级到 `6.30.6`，修复其可兼容更新覆盖的一项 open-redirect 类告警。仍有 2 个 moderate 告警，需迁移到 React Router `7.18+` 才能消除；当前不以不兼容升级冒充修复。
+- 开发工具链：审计仍报告 1 个 critical、24 个 high、6 个 moderate，主要来自 Vitest UI、Vite、ESLint 8 与 Tailwind/PostCSS 的开发依赖。它们不进入浏览器生产包，但本地开发服务器和 CI 环境仍应升级；须在独立升级分支验证 Vite/Vitest/ESLint 的兼容性后处理。
+- 静态检查：已建立 ESLint 基线。当前为 105 条既有 warning，`npm run lint` 通过但不允许告警数量增加；`npm run lint:strict` 保留零告警检查。请以专门任务清理未使用导入、`switch` 块作用域和 Hooks 依赖告警。
+- GitHub Secret Scanning 当前无告警；对受跟踪文件和可见 Git 历史进行常见 token 前缀扫描也未发现命中。`git fsck` 发现本地对象库中有 2 个 dangling commit 和 2 个 dangling blob，属于未引用对象，发布前不应把它们解释为仓库内容或推送它们。
+- GitHub 尚未启用 Dependabot alerts，也未配置 code scanning；分支保护与自动依赖更新应在仓库管理员设置中持续维护。
 
 ## 发布前检查
 

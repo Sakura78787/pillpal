@@ -12,7 +12,7 @@ import { useAuthStore } from '@/store/authStore';
 
 const Login = () => {
   const navigate = useNavigate();
-  const { authStatus } = useAuthStore();
+  const { authStatus, startGuestSession } = useAuthStore();
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [sentTo, setSentTo] = useState('');
@@ -44,6 +44,18 @@ const Login = () => {
     }
 
     setIsLoading(false);
+  };
+
+  const handleGuestExperience = () => {
+    const result = startGuestSession();
+    if (!result.success) {
+      toast.error(result.error || '暂时无法启动访客体验，请稍后重试');
+      return;
+    }
+    if (result.persistence === 'memory') {
+      toast.info('当前浏览器无法保存本次会话，刷新后体验数据会重置');
+    }
+    navigate('/dashboard');
   };
 
   return (
@@ -113,8 +125,17 @@ const Login = () => {
             </Button>
           </form>
 
+          <div className="space-y-2 border-t pt-4 text-center">
+            <Button type="button" variant="outline" className="w-full" onClick={handleGuestExperience}>
+              访客体验（无需登录）
+            </Button>
+            <p className="text-xs leading-relaxed text-gray-500">
+              使用合成示例数据；你的操作仅在当前标签页会话内保留，不上传云端。请勿输入真实健康或处方信息。
+            </p>
+          </div>
+
           <p className="text-xs text-gray-500 text-center leading-relaxed">
-            本阶段不启用游客模式、短信登录或密码登录。登录即表示同意将核心用药管理数据保存到自有 Supabase 项目。
+            登录后核心数据在线保存；访客数据不会迁移到账号。
           </p>
         </CardContent>
       </Card>
